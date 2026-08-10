@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
@@ -44,6 +45,7 @@ import kotlin.math.sin
 fun InteractiveBlackCatAvatar(
     onInteract: () -> Unit,
     modifier: Modifier = Modifier,
+    thinking: Boolean = false,
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "小猫持续呼吸")
     val breathingScale by infiniteTransition.animateFloat(
@@ -83,6 +85,15 @@ fun InteractiveBlackCatAvatar(
     val progress = interactionProgress.value
     val interactionScale = 1f + sin(progress * PI).toFloat() * 0.12f
     val interactionRotation = sin(progress * PI * 2).toFloat() * 7f
+
+    // 思考中：显示好奇表情，用户等待回复时小猫保持"在想"的样子
+    LaunchedEffect(thinking) {
+        if (thinking) {
+            currentImage = R.drawable.cat_expression_curious
+        } else if (currentImage == R.drawable.cat_expression_curious) {
+            currentImage = R.drawable.cat_main
+        }
+    }
 
     Box(
         modifier = modifier

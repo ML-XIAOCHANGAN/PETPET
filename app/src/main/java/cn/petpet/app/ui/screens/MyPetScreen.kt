@@ -136,6 +136,7 @@ fun MyPetScreen(
                     onInteract()
                     greetingRequest += 1
                 },
+                thinking = state.petTyping,
                 modifier = Modifier
                     .align(Alignment.Center)
                     .offset(y = 30.dp)
@@ -308,7 +309,19 @@ private fun CompanionSummary(
                 verticalArrangement = Arrangement.spacedBy(7.dp),
             ) {
                 Text("陪伴", fontWeight = FontWeight.Bold)
-                Text("♡  ${pet.affection}", style = MaterialTheme.typography.bodyMedium)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "♡",
+                        color = MaterialTheme.colorScheme.primary,
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Text(
+                        text = pet.affection.toString(),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Black,
+                    )
+                }
                 Text(
                     "💬 ${state.dailyProgress.chatCount}/${AffectionRules.CHAT_TARGET}",
                     style = MaterialTheme.typography.bodySmall,
