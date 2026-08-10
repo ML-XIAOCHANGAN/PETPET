@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">PETPET</string>
+    <string name="floating_pet_channel">悬浮小猫</string>
+    <string name="floating_pet_running">小猫正在陪着你</string>
+    <string name="floating_pet_stop">关闭悬浮小猫</string>
+</resources>
+

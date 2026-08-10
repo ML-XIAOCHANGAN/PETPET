@@ -1,0 +1,249 @@
+package cn.petpet.app.ui
+
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
+import cn.petpet.app.data.ApplicationRuntimeValues
+import cn.petpet.app.data.LocalSnapshot
+import cn.petpet.app.data.PetPetPreferencesRepository
+import cn.petpet.app.data.PetPetRepository
+import cn.petpet.app.model.ChatMessage
+import cn.petpet.app.model.HomeSection
+import cn.petpet.app.model.PetPetUiState
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.launch
+import java.time.format.DateTimeFormatter
+
+class PetPetViewModel(application: Application) : AndroidViewModel(application) {
+    private val repository = PetPetRepository(application)
+    private val preferencesRepository = PetPetPreferencesRepository(application)
+    private val runtimeValues = ApplicationRuntimeValues.instance
+    private val timeFormatter = DateTimeFormatter.ofPattern("HH:mm")
+    private var lastDiaryStorageWarning: String? = null
+    private val startupGreeting = listOf(
+        "你回来啦，我刚刚还在想你。",
+        "今天也一起慢慢生活吧。",
+        "见到你真好，要不要摸摸我？",
+        "外面的世界很大，我会在这里等你。",
+        "先深呼吸一下，再开始今天吧。",
+        "喵～今天有什么想和我说的吗？",
+    ).random()
+    private val initialSnapshot = repository.snapshot().let { snapshot ->
+        if (snapshot.pet == null) repository.adoptPet("小铃铛") else snapshot
+    }
+
+    private val _state = MutableStateFlow(
+        initialSnapshot.toUiState().copy(greeting = startupGreeting),
+    )
+    val state: StateFlow<PetPetUiState> = _state.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            preferencesRepository.darkThemeFlow.collect { darkTheme ->
+                _state.update { it.copy(darkTheme = darkTheme) }
+            }
+        }
+        viewModelScope.launch {
+            preferencesRepository.diaryEntriesStateFlow.collect { diaryState ->
+                val newWarning = diaryState.storageWarning
+                    ?.takeUnless { it == lastDiaryStorageWarning }
+                lastDiaryStorageWarning = diaryState.storageWarning
+                _state.update {
+                    it.copy(
+                        diaryEntries = diaryState.entries,
+                        notice = newWarning ?: it.notice,
+                    )
+                }
+            }
+        }
+    }
+
+    fun adoptPet(name: String) {
+        val normalized = name.trim()
+        if (normalized.length !in 1..12) {
+            showNotice("小猫名字需要是 1 至 12 个字符")
+            return
+        }
+        val snapshot = repository.adoptPet(normalized)
+        applySnapshot(snapshot)
+        showNotice(snapshot.storageWarning ?: "领养成功，${normalized}以后就是你的唯一小猫啦")
+    }
+
+    fun selectSection(section: HomeSection) {
+        _state.update { it.copy(section = section) }
+    }
+
+    fun setDarkTheme(enabled: Boolean) {
+        val previous = _state.value.darkTheme
+        _state.update { it.copy(darkTheme = enabled) }
+        viewModelScope.launch {
+            try {
+                preferencesRepository.setDarkTheme(enabled)
+            } catch (exception: CancellationException) {
+                throw exception
+            } catch (exception: Exception) {
+                _state.update {
+                    if (it.darkTheme == enabled) it.copy(darkTheme = previous) else it
+                }
+                showNotice("主题设置保存失败，请稍后重试")
+            }
+        }
+    }
+
+    fun addDiaryEntry(title: String, content: String) {
+        val normalizedTitle = title.trim()
+        val normalizedContent = content.trim()
+        if (normalizedTitle.length !in 1..30) {
+            showNotice("日记标题需要是 1 至 30 个字符")
+            return
+        }
+        if (normalizedContent.length !in 1..1000) {
+            showNotice("日记正文需要是 1 至 1000 个字符")
+            return
+        }
+        viewModelScope.launch {
+            try {
+                val backedUpCorruptedRaw = preferencesRepository.addDiaryEntry(
+                    normalizedTitle,
+                    normalizedContent,
+                )
+                showNotice(
+                    if (backedUpCorruptedRaw) {
+                        "小猫日记已保存，损坏的原始内容也已备份"
+                    } else {
+                        "小猫日记保存成功"
+                    },
+                )
+            } catch (exception: CancellationException) {
+                throw exception
+            } catch (exception: Exception) {
+                showNotice("小猫日记保存失败，原有内容未被覆盖")
+            }
+        }
+    }
+
+    fun interact() {
+        val (snapshot, gained) = repository.interact()
+        applySnapshot(snapshot)
+        showNotice(
+            snapshot.storageWarning ?: if (gained > 0) {
+                "摸摸成功，好感度 +$gained"
+            } else {
+                "小猫很开心，今天的互动奖励已经领满啦"
+            },
+        )
+    }
+
+    fun sendMessage(text: String) {
+        val normalized = text.trim()
+        if (normalized.isBlank()) return
+        if (normalized.length > 200) {
+            showNotice("单条消息最多 200 个字符")
+            return
+        }
+
+        val now = runtimeValues.now().format(timeFormatter)
+        val userMessage = ChatMessage(runtimeValues.nextId(), true, normalized, now)
+        val petMessage = ChatMessage(runtimeValues.nextId(), false, replyFor(normalized), now)
+        val (snapshot, gained) = repository.recordValidChat()
+        _state.update { current ->
+            current.copy(
+                pet = snapshot.pet,
+                dailyProgress = snapshot.dailyProgress,
+                posts = snapshot.posts,
+                messages = current.messages + userMessage + petMessage,
+                notice = snapshot.storageWarning ?: if (gained > 0) {
+                    "完成今天的陪伴，好感度 +$gained"
+                } else {
+                    current.notice
+                },
+            )
+        }
+    }
+
+    fun createPost(text: String) {
+        val normalized = text.trim()
+        if (normalized.length !in 1..500) {
+            showNotice("动态内容需要是 1 至 500 个字符")
+            return
+        }
+        val snapshot = repository.createPost(normalized)
+        applySnapshot(snapshot)
+        showNotice(snapshot.storageWarning ?: "动态发布成功")
+    }
+
+    fun toggleLike(postId: Long) {
+        applySnapshot(repository.toggleLike(postId))
+    }
+
+    fun addComment(postId: Long, text: String) {
+        val normalized = text.trim()
+        if (normalized.length !in 1..120) {
+            showNotice("评论需要是 1 至 120 个字符")
+            return
+        }
+        val snapshot = repository.addComment(postId, normalized)
+        applySnapshot(snapshot)
+        showNotice(snapshot.storageWarning ?: "评论成功")
+    }
+
+    fun reportPost() {
+        showNotice("已收到举报，演示版会将记录交给审核队列")
+    }
+
+    fun clearNotice() {
+        _state.update { it.copy(notice = null) }
+    }
+
+    private fun applySnapshot(snapshot: LocalSnapshot) {
+        _state.update {
+            it.copy(
+                pet = snapshot.pet,
+                dailyProgress = snapshot.dailyProgress,
+                posts = snapshot.posts,
+                notice = snapshot.storageWarning ?: it.notice,
+            )
+        }
+    }
+
+    private fun showNotice(message: String) {
+        _state.update { it.copy(notice = message) }
+    }
+
+    private fun replyFor(message: String): String {
+        return when {
+            listOf("难过", "伤心", "不好", "累").any(message::contains) ->
+                "喵……我会安静地陪着你。今天已经很努力了，可以慢一点。"
+            listOf("开心", "高兴", "喜欢").any(message::contains) ->
+                "听起来是很棒的一天！我也跟着开心起来啦，喵～"
+            listOf("早安", "早上好").any(message::contains) ->
+                "早安！今天也请带着一点点好心情出发吧。"
+            listOf("晚安", "睡觉").any(message::contains) ->
+                "晚安，我会把尾巴圈起来，守着你的好梦。"
+            message.endsWith("吗") || message.contains("？") || message.contains("?") ->
+                "让我用猫猫的方式想一想……我觉得你的感受最重要，喵。"
+            else -> "我听见啦！再和我多说一点吧，喵～"
+        }
+    }
+
+    private fun LocalSnapshot.toUiState(): PetPetUiState {
+        return PetPetUiState(
+            pet = pet,
+            dailyProgress = dailyProgress,
+            posts = posts,
+            messages = listOf(
+                ChatMessage(
+                    id = 0,
+                    fromUser = false,
+                    text = "你好呀，我会一直在这里听你说话。今天过得怎么样？",
+                    time = runtimeValues.now().format(timeFormatter),
+                ),
+            ),
+            notice = storageWarning,
+        )
+    }
+}
