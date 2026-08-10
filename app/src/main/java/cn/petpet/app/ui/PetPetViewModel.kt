@@ -9,6 +9,7 @@ import cn.petpet.app.data.LocalSnapshot
 import cn.petpet.app.data.PetPetPreferencesRepository
 import cn.petpet.app.data.PetPetRepository
 import cn.petpet.app.model.ChatMessage
+import cn.petpet.app.model.CommunityPost
 import cn.petpet.app.model.HomeSection
 import cn.petpet.app.model.PetPetUiState
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -194,6 +195,8 @@ class PetPetViewModel(application: Application) : AndroidViewModel(application) 
                 current.copy(
                     messages = current.messages.map { if (it.id == thinkingId) replyMessage else it },
                     petTyping = false,
+                    // 触发对话弹窗（5 秒后由 UI 自动隐藏）
+                    chatBubble = replyMessage.id to replyText,
                 )
             }
         }
@@ -207,7 +210,55 @@ class PetPetViewModel(application: Application) : AndroidViewModel(application) 
         }
         val snapshot = repository.createPost(normalized)
         applySnapshot(snapshot)
-        showNotice(snapshot.storageWarning ?: "动态发布成功")
+        showNotice(snapshot.storageWarning ?: "动态发布成功（离线已保存）")
+        // 后台同步到线上（失败不影响本地）
+        viewModelScope.launch {
+            val ok = gatewayClient.publishCommunityPost(
+                authorId = "local-" + (repository.snapshot().pet?.name ?: "anonymous"),
+                author = repository.snapshot().pet?.name?.let { "我和我的小猫($it)" } ?: "我和我的小猫",
+                text = normalized,
+            )
+            if (ok) {
+                _state.update { it.copy(communityOnline = true) }
+            }
+        }
+    }
+
+    /**
+     * 进入社区时尝试拉取在线动态并合并到本地展示。
+     * 无网络/网关不可用时静默保持本地数据（离线模式）。
+     */
+    fun refreshCommunityFromNetwork() {
+        viewModelScope.launch {
+            val remote = gatewayClient.fetchCommunityPosts()
+            if (remote == null) {
+                _state.update { it.copy(communityOnline = false) }
+                return@launch
+            }
+            _state.update { it.copy(communityOnline = true) }
+            // 在线动态合并进本地（按 id 去重，在线优先展示在前）
+            val localPosts = repository.snapshot().posts
+            val remotePosts = remote.mapNotNull { rp ->
+                val local = localPosts.firstOrNull { it.id.toString() == rp.id }
+                if (local != null) null else comParse(rp)
+            }
+            if (remotePosts.isNotEmpty()) {
+                repository.mergeRemotePosts(remotePosts)
+                applySnapshot(repository.snapshot())
+            }
+        }
+    }
+
+    private fun comParse(rp: ChatGatewayClient.RemotePost): CommunityPost {
+        return CommunityPost(
+            id = rp.id.hashCode().toLong() and 0x7fffffffL,
+            author = rp.author,
+            text = rp.text,
+            time = rp.time.take(16).replace("T", " "),
+            liked = false,
+            likeCount = rp.likeCount,
+            comments = emptyList(),
+        )
     }
 
     fun toggleLike(postId: Long) {

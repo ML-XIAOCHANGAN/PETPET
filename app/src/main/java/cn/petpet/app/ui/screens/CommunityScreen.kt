@@ -14,6 +14,7 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -63,6 +64,9 @@ import androidx.compose.ui.unit.dp
 import cn.petpet.app.R
 import cn.petpet.app.model.CommunityPost
 import cn.petpet.app.ui.components.VoxelButton
+import cn.petpet.app.ui.components.drawCommentIcon
+import cn.petpet.app.ui.components.drawHeartFilledIcon
+import cn.petpet.app.ui.components.drawHeartOutlineIcon
 import kotlinx.coroutines.delay
 import kotlin.math.absoluteValue
 
@@ -82,6 +86,8 @@ private val communityFrames = listOf(
 @Composable
 fun CommunityScreen(
     posts: List<CommunityPost>,
+    online: Boolean = false,
+    onRefreshNetwork: () -> Unit = {},
     onCreatePost: (String) -> Unit,
     onToggleLike: (Long) -> Unit,
     onAddComment: (Long, String) -> Unit,
@@ -89,6 +95,11 @@ fun CommunityScreen(
 ) {
     var postText by rememberSaveable { mutableStateOf("") }
     var composerExpanded by rememberSaveable { mutableStateOf(false) }
+
+    // 首次进入尝试拉取在线动态（失败静默，保持离线模式）
+    LaunchedEffect(Unit) {
+        onRefreshNetwork()
+    }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -111,6 +122,27 @@ fun CommunityScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     style = MaterialTheme.typography.bodyMedium,
                 )
+                Spacer(Modifier.weight(1f))
+                // 在线/离线标识：离线用本地数据，在线可同步
+                Surface(
+                    shape = CircleShape,
+                    color = if (online) {
+                        MaterialTheme.colorScheme.primaryContainer
+                    } else {
+                        MaterialTheme.colorScheme.surfaceVariant
+                    },
+                ) {
+                    Text(
+                        text = if (online) "在线" else "离线",
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (online) {
+                            MaterialTheme.colorScheme.onPrimaryContainer
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                    )
+                }
             }
         }
 
@@ -406,13 +438,13 @@ private fun PostCard(
                 )
 
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    ActionChip(
-                        text = if (post.liked) "♥ ${post.likeCount}" else "♡ ${post.likeCount}",
-                        active = post.liked,
+                    LikeChip(
+                        count = post.likeCount,
+                        liked = post.liked,
                         onClick = onToggleLike,
                     )
-                    ActionChip(
-                        text = "聊 ${post.comments.size}",
+                    CommentChip(
+                        count = post.comments.size,
                         active = showCommentInput,
                         onClick = { showCommentInput = !showCommentInput },
                     )
@@ -529,6 +561,98 @@ private fun PostAnimation(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
                     .padding(12.dp),
+            )
+        }
+    }
+}
+
+/** 点赞 chip：自绘爱心（空心/实心）+ 数字。 */
+@Composable
+private fun LikeChip(
+    count: Int,
+    liked: Boolean,
+    onClick: () -> Unit,
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val iconColor = if (liked) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant
+    Surface(
+        modifier = Modifier
+            .height(36.dp)
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                role = Role.Button,
+                onClick = onClick,
+            ),
+        shape = RoundedCornerShape(13.dp),
+        color = if (liked) {
+            MaterialTheme.colorScheme.tertiaryContainer
+        } else {
+            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.50f)
+        },
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(5.dp),
+        ) {
+            Canvas(Modifier.size(15.dp)) {
+                if (liked) {
+                    drawHeartFilledIcon(iconColor, size.minDimension)
+                } else {
+                    drawHeartOutlineIcon(iconColor, size.minDimension)
+                }
+            }
+            Text(
+                text = count.toString(),
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
+        }
+    }
+}
+
+/** 评论 chip：自绘聊天气泡 + 数字。 */
+@Composable
+private fun CommentChip(
+    count: Int,
+    active: Boolean,
+    onClick: () -> Unit,
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    Surface(
+        modifier = Modifier
+            .height(36.dp)
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                role = Role.Button,
+                onClick = onClick,
+            ),
+        shape = RoundedCornerShape(13.dp),
+        color = if (active) {
+            MaterialTheme.colorScheme.tertiaryContainer
+        } else {
+            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.50f)
+        },
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(5.dp),
+        ) {
+            val iconColor = if (active) {
+                MaterialTheme.colorScheme.tertiary
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            }
+            Canvas(Modifier.size(15.dp)) {
+                drawCommentIcon(iconColor, size.minDimension)
+            }
+            Text(
+                text = count.toString(),
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold,
             )
         }
     }

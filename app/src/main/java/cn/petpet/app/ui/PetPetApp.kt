@@ -96,6 +96,8 @@ fun PetPetApp(
                         )
                         HomeSection.COMMUNITY -> CommunityScreen(
                             posts = state.posts,
+                            online = state.communityOnline,
+                            onRefreshNetwork = viewModel::refreshCommunityFromNetwork,
                             onCreatePost = viewModel::createPost,
                             onToggleLike = viewModel::toggleLike,
                             onAddComment = viewModel::addComment,

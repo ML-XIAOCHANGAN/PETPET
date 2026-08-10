@@ -153,6 +153,17 @@ class PetPetRepository(
         return snapshot(readResult.storageWarning)
     }
 
+    /** 合并在线拉取的动态进本地存储（按 id 去重，插到最前）。 */
+    fun mergeRemotePosts(remotePosts: List<CommunityPost>): LocalSnapshot {
+        val readResult = readPosts()
+        val existingIds = readResult.posts.map { it.id }.toSet()
+        val fresh = remotePosts.filter { it.id !in existingIds }
+        if (fresh.isEmpty()) return snapshot(readResult.storageWarning)
+        val merged = (fresh + readResult.posts)
+        writePosts(merged)
+        return snapshot(readResult.storageWarning)
+    }
+
     private fun resetDailyProgressIfNeeded() {
         val today = runtimeValues.today().format(dateFormatter)
         if (preferences.getString(KEY_PROGRESS_DATE, null) == today) return

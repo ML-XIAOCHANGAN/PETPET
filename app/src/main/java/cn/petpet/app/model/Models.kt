@@ -59,4 +59,7 @@ data class PetPetUiState(
     val section: HomeSection = HomeSection.MY_PET,
     val notice: String? = null,
     val petTyping: Boolean = false,
+    val communityOnline: Boolean = false,
+    /** 对话弹窗：(消息id, 文本)，UI 显示 5 秒后自动清除。 */
+    val chatBubble: Pair<Long, String>? = null,
 )

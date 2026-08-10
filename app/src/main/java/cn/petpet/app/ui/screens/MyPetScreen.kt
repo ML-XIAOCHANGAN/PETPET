@@ -7,6 +7,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -42,7 +43,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
@@ -56,7 +64,14 @@ import cn.petpet.app.model.PetPetUiState
 import cn.petpet.app.overlay.FloatingPetImageButton
 import cn.petpet.app.ui.components.InteractiveBlackCatAvatar
 import cn.petpet.app.ui.components.VoxelButton
+import cn.petpet.app.ui.components.drawCalendarIcon
+import cn.petpet.app.ui.components.drawChatBubbleIcon
+import cn.petpet.app.ui.components.drawHeartIcon
+import cn.petpet.app.ui.components.drawPawIcon
 import kotlinx.coroutines.delay
+import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.sin
 
 /**
  * 单屏宠物首页。
@@ -78,6 +93,19 @@ fun MyPetScreen(
     var greetingRequest by remember { mutableIntStateOf(0) }
     val focusRequester = remember { FocusRequester() }
     val keyboardController = LocalSoftwareKeyboardController.current
+
+    // 对话弹窗：小猫回复后弹出气泡，显示 5 秒后自动隐藏
+    val bubble = state.chatBubble
+    var bubbleVisible by remember { mutableStateOf(false) }
+    LaunchedEffect(bubble) {
+        if (bubble == null) {
+            bubbleVisible = false
+            return@LaunchedEffect
+        }
+        bubbleVisible = true
+        delay(5000)
+        bubbleVisible = false
+    }
 
     LaunchedEffect(greetingRequest) {
         if (greetingRequest == 0) return@LaunchedEffect
@@ -150,8 +178,9 @@ fun MyPetScreen(
                     .offset(y = 34.dp),
             )
 
+            // 对话弹窗：优先显示小猫回复（5秒），思考中显示打字动画，否则问候语
             androidx.compose.animation.AnimatedVisibility(
-                visible = greetingVisible || state.petTyping,
+                visible = bubbleVisible || greetingVisible || state.petTyping,
                 modifier = Modifier.align(Alignment.TopCenter),
                 enter = fadeIn(tween(180)) + scaleIn(
                     animationSpec = tween(260, easing = FastOutSlowInEasing),
@@ -164,10 +193,11 @@ fun MyPetScreen(
                     transformOrigin = TransformOrigin(0.28f, 1f),
                 ),
             ) {
-                if (state.petTyping) {
-                    TypingBubble()
-                } else {
-                    GreetingBubble(text = state.greeting)
+                when {
+                    state.petTyping -> TypingBubble()
+                    bubbleVisible && bubble != null -> GreetingBubble(text = bubble.second)
+                    greetingVisible -> GreetingBubble(text = state.greeting)
+                    else -> GreetingBubble(text = state.greeting)
                 }
             }
         }
@@ -190,6 +220,7 @@ private fun ThemeToggleButton(
     onClick: () -> Unit,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
+    val iconColor = if (darkTheme) Color(0xFFFFC24B) else MaterialTheme.colorScheme.primary
     Surface(
         modifier = Modifier
             .size(44.dp)
@@ -204,11 +235,61 @@ private fun ThemeToggleButton(
         tonalElevation = 2.dp,
     ) {
         Box(contentAlignment = Alignment.Center) {
-            Text(
-                text = if (darkTheme) "☀" else "☾",
-                style = MaterialTheme.typography.titleLarge,
-            )
+            Canvas(modifier = Modifier.size(24.dp)) {
+                if (darkTheme) {
+                    drawSunIcon(iconColor)
+                } else {
+                    drawMoonIcon(iconColor)
+                }
+            }
         }
+    }
+}
+
+/** 标准月牙 + 两颗小星星：日间显示，提示可切换到夜晚。 */
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawMoonIcon(color: Color) {
+    val r = size.minDimension / 2f
+    val center = this.center
+    // 标准月牙：外圆 + 偏移内圆差集（Path 直接构造）
+    val crescent = Path().apply {
+        // 外圆大部分（右下→左上）
+        arcTo(
+            rect = Rect(center.x - r * 0.92f, center.y - r * 0.92f, center.x + r * 0.92f, center.y + r * 0.92f),
+            startAngleDegrees = 40f,
+            sweepAngleDegrees = 280f,
+            forceMoveTo = true,
+        )
+        // 内圆反向（挖出月牙内侧）
+        arcTo(
+            rect = Rect(center.x - r * 0.15f, center.y - r * 0.78f, center.x + r * 1.05f, center.y + r * 0.78f),
+            startAngleDegrees = 40f + 280f,
+            sweepAngleDegrees = -280f,
+            forceMoveTo = false,
+        )
+        close()
+    }
+    drawPath(crescent, color)
+    // 点缀小星星
+    drawCircle(color, r * 0.09f, center + Offset(-r * 0.66f, -r * 0.70f))
+    drawCircle(color, r * 0.06f, center + Offset(r * 0.20f, -r * 0.88f))
+}
+
+/** 太阳圆 + 八道光芒：夜间显示，提示可切换到白天。 */
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawSunIcon(color: Color) {
+    val r = size.minDimension / 2f
+    val center = this.center
+    drawCircle(color, r * 0.40f, center)
+    val rays = 8
+    repeat(rays) { i ->
+        val angle = (360f / rays * i) * (PI / 180f).toFloat()
+        val dir = Offset(cos(angle), sin(angle))
+        drawLine(
+            color = color,
+            start = center + dir * (r * 0.60f),
+            end = center + dir * (r * 0.92f),
+            strokeWidth = r * 0.14f,
+            cap = StrokeCap.Round,
+        )
     }
 }
 
@@ -284,20 +365,22 @@ private fun CompanionSummary(
     var expanded by remember { mutableStateOf(false) }
     val pet = requireNotNull(state.pet)
     val interactionSource = remember { MutableInteractionSource() }
+    val accent = MaterialTheme.colorScheme.primary
+    val muted = MaterialTheme.colorScheme.onSurfaceVariant
 
     Card(
         modifier = modifier
             .animateContentSize(
                 animationSpec = tween(durationMillis = 260, easing = FastOutSlowInEasing),
             )
-            .width(if (expanded) 136.dp else 48.dp)
+            .width(if (expanded) 148.dp else 52.dp)
             .clickable(
                 interactionSource = interactionSource,
                 indication = null,
                 role = Role.Button,
                 onClick = { expanded = !expanded },
             ),
-        shape = RoundedCornerShape(22.dp),
+        shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
         ),
@@ -306,34 +389,60 @@ private fun CompanionSummary(
         if (expanded) {
             Column(
                 modifier = Modifier.padding(horizontal = 14.dp, vertical = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(7.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 Text("陪伴", fontWeight = FontWeight.Bold)
+                // 好感度：自绘爱心 + 加粗数字
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = "♡",
-                        color = MaterialTheme.colorScheme.primary,
-                        style = MaterialTheme.typography.titleMedium,
-                    )
-                    Spacer(Modifier.width(4.dp))
+                    Canvas(Modifier.size(20.dp)) {
+                        drawHeartIcon(accent, size.minDimension)
+                    }
+                    Spacer(Modifier.width(6.dp))
                     Text(
                         text = pet.affection.toString(),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Black,
                     )
                 }
-                Text(
-                    "💬 ${state.dailyProgress.chatCount}/${AffectionRules.CHAT_TARGET}",
-                    style = MaterialTheme.typography.bodySmall,
-                )
-                Text(
-                    "🐾 ${state.dailyProgress.interactionCount}/${AffectionRules.INTERACTION_DAILY_LIMIT}",
-                    style = MaterialTheme.typography.bodySmall,
-                )
-                Text("领养 ${pet.adoptedAt}", style = MaterialTheme.typography.labelSmall)
+                // 聊天进度：自绘气泡 + 数字
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Canvas(Modifier.size(18.dp)) {
+                        drawChatBubbleIcon(muted, size.minDimension)
+                    }
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        text = "${state.dailyProgress.chatCount}/${AffectionRules.CHAT_TARGET}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = muted,
+                    )
+                }
+                // 互动进度：自绘爪印 + 数字
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Canvas(Modifier.size(18.dp)) {
+                        drawPawIcon(muted, size.minDimension)
+                    }
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        text = "${state.dailyProgress.interactionCount}/${AffectionRules.INTERACTION_DAILY_LIMIT}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = muted,
+                    )
+                }
+                // 领养日期：自绘日历
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Canvas(Modifier.size(16.dp)) {
+                        drawCalendarIcon(muted, size.minDimension)
+                    }
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        text = pet.adoptedAt,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = muted,
+                    )
+                }
                 Text(
                     text = "‹ 收起",
-                    color = MaterialTheme.colorScheme.primary,
+                    color = accent,
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.Bold,
                 )
@@ -353,7 +462,10 @@ private fun CompanionSummary(
                     fontWeight = FontWeight.Bold,
                     textAlign = TextAlign.Center,
                 )
-                Text("♡", style = MaterialTheme.typography.titleMedium)
+                // 收起态：自绘爱心
+                Canvas(Modifier.size(16.dp)) {
+                    drawHeartIcon(accent, size.minDimension)
+                }
                 Text(
                     text = pet.affection.toString(),
                     style = MaterialTheme.typography.labelMedium,
@@ -361,7 +473,7 @@ private fun CompanionSummary(
                 )
                 Text(
                     text = "›",
-                    color = MaterialTheme.colorScheme.primary,
+                    color = accent,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                 )

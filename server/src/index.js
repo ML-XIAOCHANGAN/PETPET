@@ -6,6 +6,7 @@
 const express = require("express");
 const { checkContent } = require("./audit");
 const { RateLimiter } = require("./rateLimiter");
+const communityStore = require("./communityStore");
 
 const PORT = Number(process.env.PORT || 3002);
 const API_KEY = process.env.ZHIPU_API_KEY || "";
@@ -73,7 +74,45 @@ async function callZhipu(userId, message, history) {
 }
 
 app.get("/health", (_req, res) => {
-  res.json({ ok: true, model: MODEL, degraded: !API_KEY });
+  res.json({ ok: true, model: MODEL, degraded: !API_KEY, community: true });
+});
+
+// ── 社区同步 API（离线优先 + 在线同步双模式） ──────────────
+
+// 拉取社区动态列表
+app.get("/api/community/posts", (req, res) => {
+  const userId = req.query.userId || undefined;
+  res.json({ posts: communityStore.listPosts(userId) });
+});
+
+// 发布动态（客户端本地已保存，同步到线上）
+app.post("/api/community/posts", (req, res) => {
+  const { authorId, author, text } = req.body || {};
+  if (typeof text !== "string" || text.trim().length === 0) {
+    return res.status(400).json({ error: "empty" });
+  }
+  // 发布内容也过内容审核
+  const { level, response: safetyResponse } = checkContent(text);
+  if (level === 2) {
+    return res.status(400).json({ error: "safety", reply: safetyResponse });
+  }
+  if (level === 1) {
+    return res.status(400).json({ error: "blocked" });
+  }
+  const post = communityStore.addPost({
+    authorId: String(authorId || "anonymous").slice(0, 64),
+    author: String(author || "小猫朋友").slice(0, 32),
+    text: text.trim(),
+  });
+  res.status(201).json({ post });
+});
+
+// 点赞同步
+app.post("/api/community/like", (req, res) => {
+  const { postId } = req.body || {};
+  if (!postId) return res.status(400).json({ error: "missing_post_id" });
+  const ok = communityStore.toggleLike(String(postId));
+  res.json({ ok });
 });
 
 app.post("/api/chat", async (req, res) => {
