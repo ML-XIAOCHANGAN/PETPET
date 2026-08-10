@@ -150,7 +150,7 @@ fun MyPetScreen(
             )
 
             androidx.compose.animation.AnimatedVisibility(
-                visible = greetingVisible,
+                visible = greetingVisible || state.petTyping,
                 modifier = Modifier.align(Alignment.TopCenter),
                 enter = fadeIn(tween(180)) + scaleIn(
                     animationSpec = tween(260, easing = FastOutSlowInEasing),
@@ -163,7 +163,11 @@ fun MyPetScreen(
                     transformOrigin = TransformOrigin(0.28f, 1f),
                 ),
             ) {
-                GreetingBubble(text = state.greeting)
+                if (state.petTyping) {
+                    TypingBubble()
+                } else {
+                    GreetingBubble(text = state.greeting)
+                }
             }
         }
 
@@ -232,6 +236,41 @@ private fun GreetingBubble(text: String) {
             fontWeight = FontWeight.SemiBold,
             textAlign = TextAlign.Center,
             maxLines = 3,
+        )
+    }
+}
+
+@Composable
+private fun TypingBubble() {
+    var dots by remember { mutableIntStateOf(0) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(380)
+            dots = (dots + 1) % 4
+        }
+    }
+    val dotsText = ".".repeat(dots)
+    Box(
+        modifier = Modifier
+            .width(150.dp)
+            .height(70.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Image(
+            painter = painterResource(R.drawable.speech_bubble),
+            contentDescription = null,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.FillBounds,
+        )
+        Text(
+            text = "小猫正在想$dotsText",
+            modifier = Modifier
+                .offset(y = (-6).dp)
+                .padding(horizontal = 20.dp),
+            color = androidx.compose.ui.graphics.Color.Black,
+            style = MaterialTheme.typography.bodySmall,
+            fontWeight = FontWeight.SemiBold,
+            textAlign = TextAlign.Center,
         )
     }
 }

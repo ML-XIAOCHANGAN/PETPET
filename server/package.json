@@ -1,0 +1,16 @@
+{
+  "name": "petpet-chat-gateway",
+  "version": "0.1.0",
+  "private": true,
+  "description": "PETPET 对话网关：内容审核 + 限流 + 智谱 GLM 转发 + 降级",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "express": "^4.21.2"
+  }
+}

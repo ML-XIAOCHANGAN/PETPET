@@ -58,4 +58,5 @@ data class PetPetUiState(
     val greeting: String = "今天也一起慢慢生活吧。",
     val section: HomeSection = HomeSection.MY_PET,
     val notice: String? = null,
+    val petTyping: Boolean = false,
 )

@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import cn.petpet.app.data.ApplicationRuntimeValues
+import cn.petpet.app.data.ChatGatewayClient
 import cn.petpet.app.data.LocalSnapshot
 import cn.petpet.app.data.PetPetPreferencesRepository
 import cn.petpet.app.data.PetPetRepository
@@ -21,6 +22,7 @@ import java.time.format.DateTimeFormatter
 class PetPetViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = PetPetRepository(application)
     private val preferencesRepository = PetPetPreferencesRepository(application)
+    private val gatewayClient = ChatGatewayClient()
     private val runtimeValues = ApplicationRuntimeValues.instance
     private val timeFormatter = DateTimeFormatter.ofPattern("HH:mm")
     private var lastDiaryStorageWarning: String? = null
@@ -145,23 +147,55 @@ class PetPetViewModel(application: Application) : AndroidViewModel(application) 
             showNotice("单条消息最多 200 个字符")
             return
         }
+        if (_state.value.petTyping) {
+            showNotice("小猫正在想怎么回你，稍等一下喵")
+            return
+        }
 
         val now = runtimeValues.now().format(timeFormatter)
         val userMessage = ChatMessage(runtimeValues.nextId(), true, normalized, now)
-        val petMessage = ChatMessage(runtimeValues.nextId(), false, replyFor(normalized), now)
+        // 先放一条"思考中"占位，网关返回后替换
+        val thinkingId = runtimeValues.nextId()
+        val thinkingMessage = ChatMessage(thinkingId, false, "…", now)
         val (snapshot, gained) = repository.recordValidChat()
         _state.update { current ->
             current.copy(
                 pet = snapshot.pet,
                 dailyProgress = snapshot.dailyProgress,
                 posts = snapshot.posts,
-                messages = current.messages + userMessage + petMessage,
+                messages = current.messages + userMessage + thinkingMessage,
+                petTyping = true,
                 notice = snapshot.storageWarning ?: if (gained > 0) {
                     "完成今天的陪伴，好感度 +$gained"
                 } else {
                     current.notice
                 },
             )
+        }
+
+        viewModelScope.launch {
+            val history = _state.value.messages
+                .filter { it.id != thinkingId && it.id != userMessage.id }
+                .takeLast(6)
+                .map { (if (it.fromUser) "user" else "pet") to it.text }
+            val response = gatewayClient.sendMessage(
+                userId = "local-" + (repository.snapshot().pet?.name ?: "anonymous"),
+                message = normalized,
+                history = history,
+            )
+            // 网关可用且未降级 → 用模型回复；否则回退本地规则
+            val replyText = if (response != null && !response.degraded && response.reply.isNotBlank()) {
+                response.reply
+            } else {
+                replyFor(normalized)
+            }
+            val replyMessage = ChatMessage(runtimeValues.nextId(), false, replyText, now)
+            _state.update { current ->
+                current.copy(
+                    messages = current.messages.map { if (it.id == thinkingId) replyMessage else it },
+                    petTyping = false,
+                )
+            }
         }
     }
 
