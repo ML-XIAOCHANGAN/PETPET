@@ -3,16 +3,22 @@ package cn.petpet.app.ui.components
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -145,7 +151,7 @@ fun VoxelNavigationBar(
                 Surface(
                     modifier = Modifier
                         .weight(1f)
-                        .height(42.dp)
+                        .height(52.dp)
                         .clickable(
                             role = Role.Tab,
                             interactionSource = interactionSource,
@@ -156,10 +162,32 @@ fun VoxelNavigationBar(
                     color = background,
                     contentColor = foreground,
                 ) {
-                    Box(contentAlignment = Alignment.Center) {
+                    Column(
+                        modifier = Modifier.fillMaxSize(),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center,
+                    ) {
+                        // 猫脸眼睛用"图标所在底色"：选中=primary 深色，未选中=表面色
+                        val catEyeColor = if (active) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.surface
+                        }
+                        Canvas(Modifier.size(20.dp)) {
+                            when (section) {
+                                HomeSection.MY_PET -> drawCatFaceIcon(
+                                    color = foreground,
+                                    size = size.minDimension,
+                                    eyeColor = catEyeColor,
+                                )
+                                HomeSection.GROWTH -> drawDiaryIcon(foreground, size.minDimension)
+                                HomeSection.COMMUNITY -> drawCommunityIcon(foreground, size.minDimension)
+                            }
+                        }
+                        Spacer(Modifier.height(2.dp))
                         Text(
                             text = section.title,
-                            style = MaterialTheme.typography.labelLarge,
+                            style = MaterialTheme.typography.labelSmall,
                             fontWeight = if (active) FontWeight.Bold else FontWeight.Medium,
                         )
                     }

@@ -178,3 +178,71 @@ fun DrawScope.drawReportIcon(color: Color, size: Float, center: Offset = this.ce
     drawCircle(color, dotR, center)
     drawCircle(color, dotR, center + Offset(0f, size * 0.22f))
 }
+
+/** 底部导航：小猫脸（My Pet）。eyeColor 用导航栏底色模拟"挖空"眼睛。 */
+fun DrawScope.drawCatFaceIcon(
+    color: Color,
+    size: Float,
+    center: Offset = this.center,
+    eyeColor: Color = Color.White,
+) {
+    val r = size / 2f
+    // 左耳（尖耳，更明显）
+    val leftEar = Path().apply {
+        moveTo(center.x - r * 0.80f, center.y - r * 0.10f)
+        lineTo(center.x - r * 0.42f, center.y - r * 0.66f)
+        lineTo(center.x - r * 0.06f, center.y - r * 0.42f)
+        close()
+    }
+    // 右耳
+    val rightEar = Path().apply {
+        moveTo(center.x + r * 0.80f, center.y - r * 0.10f)
+        lineTo(center.x + r * 0.42f, center.y - r * 0.66f)
+        lineTo(center.x + r * 0.06f, center.y - r * 0.42f)
+        close()
+    }
+    drawPath(leftEar, color)
+    drawPath(rightEar, color)
+    // 脸（圆）
+    drawCircle(color, r * 0.54f, center + Offset(0f, r * 0.12f))
+    // 眼睛：用底色画"眯眯眼"横线，模拟挖空（深浅底都正确）
+    drawLine(eyeColor, Offset(center.x - r * 0.28f, center.y + r * 0.12f), Offset(center.x - r * 0.08f, center.y + r * 0.12f), r * 0.10f, StrokeCap.Round)
+    drawLine(eyeColor, Offset(center.x + r * 0.08f, center.y + r * 0.12f), Offset(center.x + r * 0.28f, center.y + r * 0.12f), r * 0.10f, StrokeCap.Round)
+    // 小鼻子
+    drawLine(eyeColor.copy(alpha = 0.75f), Offset(center.x, center.y + r * 0.30f), Offset(center.x, center.y + r * 0.42f), r * 0.08f, StrokeCap.Round)
+}
+
+/** 底部导航：日记本（成长）。 */
+fun DrawScope.drawDiaryIcon(color: Color, size: Float, center: Offset = this.center) {
+    val w = size * 0.64f
+    val h = size * 0.70f
+    val left = center.x - w / 2f
+    val top = center.y - h / 2f
+    // 打开的书：两页对称
+    val book = Path().apply {
+        // 左页
+        moveTo(left, top)
+        cubicTo(left + w * 0.18f, top + h * 0.06f, left + w * 0.18f, top + h * 0.94f, left, top + h)
+        lineTo(center.x, top + h * 0.92f)
+        lineTo(center.x, top + h * 0.08f)
+        close()
+        // 右页
+        moveTo(left + w, top)
+        cubicTo(left + w * 0.82f, top + h * 0.06f, left + w * 0.82f, top + h * 0.94f, left + w, top + h)
+        lineTo(center.x, top + h * 0.92f)
+        lineTo(center.x, top + h * 0.08f)
+        close()
+    }
+    drawPath(book, color)
+}
+
+/** 底部导航：朋友/社区（两个并排小人头）。 */
+fun DrawScope.drawCommunityIcon(color: Color, size: Float, center: Offset = this.center) {
+    val r = size / 2f
+    // 左边人：头 + 肩
+    drawCircle(color, r * 0.16f, center + Offset(-r * 0.28f, -r * 0.22f))
+    drawCircle(color, r * 0.26f, center + Offset(-r * 0.28f, r * 0.28f))
+    // 右边人：头 + 肩（略小、靠后）
+    drawCircle(color, r * 0.13f, center + Offset(r * 0.30f, -r * 0.28f))
+    drawCircle(color, r * 0.22f, center + Offset(r * 0.30f, r * 0.22f))
+}
