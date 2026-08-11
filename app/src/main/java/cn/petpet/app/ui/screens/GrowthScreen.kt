@@ -1,5 +1,6 @@
 package cn.petpet.app.ui.screens
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -39,6 +40,7 @@ import cn.petpet.app.model.PetProfile
 import cn.petpet.app.ui.components.InteractiveBlackCatAvatar
 import cn.petpet.app.ui.components.VoxelButton
 import cn.petpet.app.ui.components.VoxelButtonStyle
+import cn.petpet.app.ui.components.drawHeartFilledIcon
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
 
@@ -168,8 +170,30 @@ private fun MyProfileCard(pet: PetProfile) {
                 Spacer(Modifier.width(16.dp))
                 Column {
                     Text("猫咪主人", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                    Text("和 ${pet.name} 相处的第 $togetherDays 天")
-                    Text("当前好感度 ${pet.affection}")
+                    // 相处天数：突出展示（大数字 + 爱心 + 文字）
+                    val primaryColor = MaterialTheme.colorScheme.primary
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = togetherDays.toString(),
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.Black,
+                            color = primaryColor,
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        Canvas(Modifier.size(14.dp)) {
+                            drawHeartFilledIcon(primaryColor, size.minDimension)
+                        }
+                        Spacer(Modifier.width(4.dp))
+                        Text(
+                            text = "天相伴",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                        )
+                    }
+                    Text(
+                        text = "好感度 ♡ ${pet.affection}",
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
                     Text("领养于 ${pet.adoptedAt}", style = MaterialTheme.typography.bodySmall)
                 }
             }

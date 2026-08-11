@@ -104,7 +104,7 @@ fun CommunityScreen(
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
         item {
             Row(
@@ -224,12 +224,13 @@ private fun CommunityReel() {
                 Text(
                     text = "片刻放映",
                     style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.66f),
+                    color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.75f),
                 )
                 Text(
                     text = communityFrames[currentFrame].caption,
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer,
                 )
                 Text(
                     text = communityFrames[currentFrame].emoticon,
