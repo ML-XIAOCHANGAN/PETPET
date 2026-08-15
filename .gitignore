@@ -20,3 +20,7 @@ app/build
 /tmp
 *.apk
 *.aab
+
+# 构建输出日志
+build_exp.txt
+build_set.txt
