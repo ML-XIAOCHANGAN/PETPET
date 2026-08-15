@@ -65,9 +65,25 @@ class PetPetPreferencesRepository(
     val diaryEntriesFlow: Flow<List<DiaryEntry>> = diaryEntriesStateFlow
         .map { it.entries }
 
+    /** 对话模型配置：Provider id（如 zhipu）。 */
+    val chatProviderFlow: Flow<String> = safePreferencesFlow()
+        .map { state -> state.preferences[KEY_CHAT_PROVIDER] ?: "zhipu" }
+
+    /** 对话模型 API Key（用户设置页填写，可能为空）。 */
+    val chatApiKeyFlow: Flow<String> = safePreferencesFlow()
+        .map { state -> state.preferences[KEY_CHAT_API_KEY] ?: "" }
+
     suspend fun setDarkTheme(enabled: Boolean) {
         dataStore.edit { preferences ->
             preferences[KEY_DARK_THEME] = enabled
+        }
+    }
+
+    /** 保存对话模型配置（Provider + API Key）。 */
+    suspend fun setChatConfig(providerId: String, apiKey: String) {
+        dataStore.edit { preferences ->
+            preferences[KEY_CHAT_PROVIDER] = providerId
+            preferences[KEY_CHAT_API_KEY] = apiKey.trim()
         }
     }
 
@@ -114,5 +130,7 @@ class PetPetPreferencesRepository(
         val KEY_DIARY_ENTRIES = stringPreferencesKey("diary_entries")
         val KEY_DIARY_ENTRIES_CORRUPTED_BACKUP =
             stringPreferencesKey("diary_entries_corrupted_backup")
+        val KEY_CHAT_PROVIDER = stringPreferencesKey("chat_provider")
+        val KEY_CHAT_API_KEY = stringPreferencesKey("chat_api_key")
     }
 }

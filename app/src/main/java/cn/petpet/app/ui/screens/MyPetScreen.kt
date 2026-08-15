@@ -63,6 +63,7 @@ import androidx.compose.ui.unit.dp
 import cn.petpet.app.R
 import cn.petpet.app.domain.AffectionRules
 import cn.petpet.app.model.PetPetUiState
+import cn.petpet.app.model.ChatProvider
 import cn.petpet.app.overlay.FloatingPetImageButton
 import cn.petpet.app.ui.components.InteractiveBlackCatAvatar
 import cn.petpet.app.ui.components.SettingsDialog
@@ -88,6 +89,7 @@ fun MyPetScreen(
     onInteract: () -> Unit,
     onSendMessage: (String) -> Unit,
     onDarkThemeChange: (Boolean) -> Unit,
+    onChatConfigChange: (ChatProvider, String) -> Unit,
     onOpenSettings: () -> Unit = {},
     chatFocusRequest: Long = 0L,
 ) {
@@ -229,7 +231,10 @@ fun MyPetScreen(
         SettingsDialog(
             pet = pet,
             darkTheme = state.darkTheme,
+            chatProvider = state.chatProvider,
+            chatApiKey = state.chatApiKey,
             onDarkThemeChange = onDarkThemeChange,
+            onChatConfigChange = onChatConfigChange,
             onResetAndReAdopt = {
                 showSettings = false
                 onOpenSettings()

@@ -18,6 +18,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -30,8 +31,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import cn.petpet.app.model.ChatProvider
 import cn.petpet.app.model.PetBreeds
 import cn.petpet.app.model.PetProfile
 import cn.petpet.app.model.PetType
@@ -39,13 +44,16 @@ import cn.petpet.app.ui.components.drawHeartFilledIcon
 
 /**
  * 设置对话框：点击首页左上角"MyPet"进入。
- * 展示宠物档案 + 主题切换 + 对话模式 + 重新领养。
+ * 展示宠物档案 + 主题切换 + AI 对话模型配置 + 重新领养。
  */
 @Composable
 fun SettingsDialog(
     pet: PetProfile,
     darkTheme: Boolean,
+    chatProvider: ChatProvider,
+    chatApiKey: String,
     onDarkThemeChange: (Boolean) -> Unit,
+    onChatConfigChange: (ChatProvider, String) -> Unit,
     onResetAndReAdopt: () -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -123,11 +131,91 @@ fun SettingsDialog(
                     )
                 }
 
-                // 对话模式说明
+                // ── AI 对话模型配置 ──
+                var selectedProvider by remember { mutableStateOf(chatProvider) }
+                var apiKeyInput by remember { mutableStateOf(chatApiKey) }
+                var showApiKey by remember { mutableStateOf(false) }
                 Text(
-                    text = "对话模式：在线 AI（智谱 GLM-4-Flash 免费模型）可用时自动联网回复，无网络时由本地小猫陪你。",
+                    text = "🤖 AI 对话模型",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    text = "填入密钥后直连模型服务（手机有网即可用）；未填密钥时走本机网关，均失败则本地小猫陪你。",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                // 模型选择（四个 Provider 一行）
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ChatProvider.entries.forEach { provider ->
+                        val isSelected = provider == selectedProvider
+                        Surface(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = null,
+                                    onClick = { selectedProvider = provider },
+                                ),
+                            shape = RoundedCornerShape(14.dp),
+                            color = if (isSelected) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.surfaceVariant
+                            },
+                        ) {
+                            Text(
+                                text = provider.displayName,
+                                modifier = Modifier.padding(vertical = 10.dp),
+                                textAlign = TextAlign.Center,
+                                color = if (isSelected) {
+                                    MaterialTheme.colorScheme.onPrimary
+                                } else {
+                                    MaterialTheme.colorScheme.onSurface
+                                },
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                            )
+                        }
+                    }
+                }
+                // API Key 输入（掩码 + 明文切换）
+                OutlinedTextField(
+                    value = apiKeyInput,
+                    onValueChange = { apiKeyInput = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = { Text(selectedProvider.hint) },
+                    singleLine = true,
+                    visualTransformation = if (showApiKey) {
+                        VisualTransformation.None
+                    } else {
+                        PasswordVisualTransformation()
+                    },
+                    trailingIcon = {
+                        Text(
+                            text = if (showApiKey) "🙈" else "👁️",
+                            modifier = Modifier
+                                .clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = null,
+                                    onClick = { showApiKey = !showApiKey },
+                                )
+                                .padding(8.dp),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    },
+                    shape = RoundedCornerShape(14.dp),
+                )
+                Text(
+                    text = "当前模型：${selectedProvider.defaultModel}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                VoxelButton(
+                    text = "保存对话模型",
+                    onClick = { onChatConfigChange(selectedProvider, apiKeyInput) },
+                    compact = true,
+                    modifier = Modifier.fillMaxWidth(),
                 )
 
                 HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)

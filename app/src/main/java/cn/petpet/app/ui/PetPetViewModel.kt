@@ -9,6 +9,7 @@ import cn.petpet.app.data.LocalSnapshot
 import cn.petpet.app.data.PetPetPreferencesRepository
 import cn.petpet.app.data.PetPetRepository
 import cn.petpet.app.model.ChatMessage
+import cn.petpet.app.model.ChatProvider
 import cn.petpet.app.model.CommunityPost
 import cn.petpet.app.model.HomeSection
 import cn.petpet.app.model.PetBreeds
@@ -67,6 +68,30 @@ class PetPetViewModel(application: Application) : AndroidViewModel(application) 
                 }
             }
         }
+        viewModelScope.launch {
+            preferencesRepository.chatProviderFlow.collect { providerId ->
+                _state.update { it.copy(chatProvider = ChatProvider.byId(providerId)) }
+            }
+        }
+        viewModelScope.launch {
+            preferencesRepository.chatApiKeyFlow.collect { apiKey ->
+                _state.update { it.copy(chatApiKey = apiKey) }
+            }
+        }
+    }
+
+    /** 保存对话模型配置（Provider + API Key），设置页调用。 */
+    fun setChatConfig(provider: ChatProvider, apiKey: String) {
+        _state.update {
+            it.copy(
+                chatProvider = provider,
+                chatApiKey = apiKey.trim(),
+            )
+        }
+        viewModelScope.launch {
+            preferencesRepository.setChatConfig(provider.id, apiKey)
+        }
+        showNotice("已切换对话模型：${provider.displayName}")
     }
 
     /** 领养流程：重新随机抽取一只宠物（用户不满意可换）。 */
@@ -209,11 +234,25 @@ class PetPetViewModel(application: Application) : AndroidViewModel(application) 
                 .filter { it.id != thinkingId && it.id != userMessage.id }
                 .takeLast(6)
                 .map { (if (it.fromUser) "user" else "pet") to it.text }
-            val response = gatewayClient.sendMessage(
-                userId = "local-" + (repository.snapshot().pet?.name ?: "anonymous"),
-                message = normalized,
-                history = history,
-            )
+            // 设置了 API Key → 直连模型（手机无需网关）；否则走网关（无 Key 时回退 .env 免费 Key）
+            val chatProvider = _state.value.chatProvider
+            val chatApiKey = _state.value.chatApiKey
+            val response = if (chatApiKey.isNotBlank()) {
+                gatewayClient.directChat(
+                    provider = chatProvider,
+                    apiKey = chatApiKey,
+                    message = normalized,
+                    history = history,
+                )
+            } else {
+                gatewayClient.sendMessage(
+                    userId = "local-" + (repository.snapshot().pet?.name ?: "anonymous"),
+                    message = normalized,
+                    history = history,
+                    provider = chatProvider.id,
+                    apiKey = "",
+                )
+            }
             // 网关可用且未降级 → 用模型回复；否则回退本地规则
             val replyText = if (response != null && !response.degraded && response.reply.isNotBlank()) {
                 response.reply

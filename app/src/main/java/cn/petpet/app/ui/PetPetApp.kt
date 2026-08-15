@@ -99,6 +99,7 @@ fun PetPetApp(
                                 onInteract = viewModel::interact,
                                 onSendMessage = viewModel::sendMessage,
                                 onDarkThemeChange = viewModel::setDarkTheme,
+                                onChatConfigChange = viewModel::setChatConfig,
                                 onOpenSettings = viewModel::resetAndReAdopt,
                                 chatFocusRequest = chatFocusRequest,
                             )

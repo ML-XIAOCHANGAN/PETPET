@@ -66,4 +66,7 @@ data class PetPetUiState(
     /** 领养流程：无宠物时显示抽卡+介绍+命名。 */
     val showAdoption: Boolean = false,
     val candidateBreed: PetBreed? = null,
+    /** 对话模型配置（设置页可改）。 */
+    val chatProvider: ChatProvider = ChatProvider.ZHIPU,
+    val chatApiKey: String = "",
 )

@@ -25,8 +25,32 @@ const PORT = Number(process.env.PORT || 3002);
 const API_KEY = process.env.ZHIPU_API_KEY || "";
 const MODEL = process.env.MODEL || "glm-4-flash-250414"; // 智谱官方免费文本模型（2026-08 实测：免费档稳定可用；新版 glm-4.7-flash 当前限流过严勿用）
 const MAX_INPUT_LEN = Number(process.env.MAX_INPUT_LEN || 200);
-const ZHIPU_URL = "https://open.bigmodel.cn/api/paas/v4/chat/completions";
 const TIMEOUT_MS = 15_000;
+
+// 支持的对话模型 Provider（全部 OpenAI 兼容接口）
+// id 与客户端 ChatProvider 枚举一致；model 为各自默认模型（请求可覆盖）
+const PROVIDERS = {
+  openai: {
+    label: "ChatGPT",
+    baseUrl: "https://api.openai.com/v1/chat/completions",
+    model: "gpt-4o-mini",
+  },
+  deepseek: {
+    label: "DeepSeek",
+    baseUrl: "https://api.deepseek.com/v1/chat/completions",
+    model: "deepseek-chat",
+  },
+  zhipu: {
+    label: "GLM 智谱",
+    baseUrl: "https://open.bigmodel.cn/api/paas/v4/chat/completions",
+    model: "glm-4-flash-250414",
+  },
+  kimi: {
+    label: "Kimi",
+    baseUrl: "https://api.moonshot.cn/v1/chat/completions",
+    model: "moonshot-v1-8k",
+  },
+};
 
 const limiter = new RateLimiter({ perMinute: Number(process.env.RATE_LIMIT_PER_MIN || 20) });
 const app = express();
@@ -36,8 +60,14 @@ if (!API_KEY) {
   console.warn("[petpet-gateway] 警告: 未设置 ZHIPU_API_KEY，对话将全部降级为本地规则。");
 }
 
-// 调用智谱 GLM 文本模型（OpenAI 兼容接口），失败返回 null
-async function callZhipu(userId, message, history) {
+// 调用指定 Provider 的大模型（OpenAI 兼容接口），失败返回 null
+// provider 不在表内返回 { invalid: true }；apiKey 为空时回退 .env 的 ZHIPU_API_KEY（仅 zhipu）
+async function callProvider(providerId, apiKey, modelOverride, message, history) {
+  const provider = PROVIDERS[providerId] || PROVIDERS.zhipu;
+  const key = (apiKey && apiKey.trim()) || (providerId === "zhipu" ? API_KEY : "");
+  if (!key) return null;
+  const model = modelOverride || provider.model;
+
   const messages = [
     {
       role: "system",
@@ -58,14 +88,14 @@ async function callZhipu(userId, message, history) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
-    const resp = await fetch(ZHIPU_URL, {
+    const resp = await fetch(provider.baseUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${API_KEY}`,
+        Authorization: `Bearer ${key}`,
       },
       body: JSON.stringify({
-        model: MODEL,
+        model,
         messages,
         temperature: 0.8,
         max_tokens: 200,
@@ -73,13 +103,13 @@ async function callZhipu(userId, message, history) {
       signal: controller.signal,
     });
     if (!resp.ok) {
-      console.warn(`[petpet-gateway] 智谱返回 ${resp.status}: ${(await resp.text()).slice(0, 200)}`);
+      console.warn(`[petpet-gateway] ${provider.label} 返回 ${resp.status}: ${(await resp.text()).slice(0, 200)}`);
       return null;
     }
     const data = await resp.json();
     return data.choices?.[0]?.message?.content?.trim() || null;
   } catch (err) {
-    console.warn(`[petpet-gateway] 模型调用失败: ${err.message}`);
+    console.warn(`[petpet-gateway] 模型调用失败(${provider.label}): ${err.message}`);
     return null;
   } finally {
     clearTimeout(timer);
@@ -87,7 +117,13 @@ async function callZhipu(userId, message, history) {
 }
 
 app.get("/health", (_req, res) => {
-  res.json({ ok: true, model: MODEL, degraded: !API_KEY, community: true });
+  res.json({
+    ok: true,
+    model: MODEL,
+    providers: Object.keys(PROVIDERS),
+    degraded: !API_KEY,
+    community: true,
+  });
 });
 
 // ── 社区同步 API（离线优先 + 在线同步双模式） ──────────────
@@ -129,7 +165,7 @@ app.post("/api/community/like", (req, res) => {
 });
 
 app.post("/api/chat", async (req, res) => {
-  const { userId = "anonymous", message = "", history = [] } = req.body || {};
+  const { userId = "anonymous", message = "", history = [], provider = "zhipu", apiKey = "", model } = req.body || {};
 
   // 1. 输入校验
   if (typeof message !== "string" || message.trim().length === 0) {
@@ -137,6 +173,9 @@ app.post("/api/chat", async (req, res) => {
   }
   if (message.length > MAX_INPUT_LEN) {
     return res.status(400).json({ reply: "", degraded: true, reason: "too_long" });
+  }
+  if (!PROVIDERS[provider]) {
+    return res.status(400).json({ reply: "", degraded: true, reason: "unknown_provider" });
   }
 
   // 2. 内容审核（输入）
@@ -154,7 +193,7 @@ app.post("/api/chat", async (req, res) => {
   }
 
   // 4. 模型转发（失败 → 降级）
-  const reply = await callZhipu(userId, message, history);
+  const reply = await callProvider(provider, apiKey, model, message, history);
   if (reply === null) {
     return res.json({ reply: "", degraded: true, reason: "model_unavailable" });
   }
