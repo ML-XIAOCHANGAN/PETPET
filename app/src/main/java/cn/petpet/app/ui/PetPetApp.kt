@@ -100,7 +100,6 @@ fun PetPetApp(
                                 onSendMessage = viewModel::sendMessage,
                                 onDarkThemeChange = viewModel::setDarkTheme,
                                 onChatConfigChange = viewModel::setChatConfig,
-                                onOpenSettings = viewModel::resetAndReAdopt,
                                 chatFocusRequest = chatFocusRequest,
                             )
                             HomeSection.GROWTH -> GrowthScreen(

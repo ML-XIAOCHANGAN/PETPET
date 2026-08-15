@@ -35,6 +35,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cn.petpet.app.R
+import cn.petpet.app.model.PetBreeds
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -113,11 +114,11 @@ object FloatingPetController {
 }
 
 /**
- * 使用用户提供的黑色爪印图片作为首页悬浮窗按钮。
+ * 使用用户领养宠物主头像作为首页悬浮窗按钮。
  * 未开启时负责申请权限并启动；已开启时再次点击会关闭并停用自启动。
  */
 @Composable
-fun FloatingPetImageButton(modifier: Modifier = Modifier) {
+fun FloatingPetImageButton(modifier: Modifier = Modifier, breedId: String? = null) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     var overlayAllowed by remember {
@@ -125,6 +126,9 @@ fun FloatingPetImageButton(modifier: Modifier = Modifier) {
     }
     val running by FloatingPetController.running.collectAsStateWithLifecycle()
     val interactionSource = remember { MutableInteractionSource() }
+    val avatarRes = remember(breedId) {
+        PetBreeds.byId(breedId ?: "")?.avatarRes ?: R.drawable.cat_main
+    }
 
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
@@ -188,8 +192,8 @@ fun FloatingPetImageButton(modifier: Modifier = Modifier) {
         contentAlignment = Alignment.Center,
     ) {
         Image(
-            painter = painterResource(R.drawable.floating_paw_button),
-            contentDescription = if (running) "关闭悬浮小猫" else "设置并开启悬浮小猫",
+            painter = painterResource(avatarRes),
+            contentDescription = if (running) "关闭悬浮宠物" else "设置并开启悬浮宠物",
             modifier = Modifier
                 .fillMaxSize()
                 .graphicsLayer { alpha = if (running) 1f else 0.78f },

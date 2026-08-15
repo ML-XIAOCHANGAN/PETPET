@@ -17,6 +17,7 @@ import androidx.core.app.NotificationCompat
 import cn.petpet.app.MainActivity
 import cn.petpet.app.R
 import cn.petpet.app.data.PetPetRepository
+import cn.petpet.app.model.PetBreeds
 import kotlin.math.abs
 
 class FloatingPetService : Service() {
@@ -115,8 +116,13 @@ class FloatingPetService : Service() {
         }
 
         lateinit var view: FloatingPetView
+        // 悬浮宠物图标 = 用户领养的宠物主头像
+        val petBreedId = runCatching { PetPetRepository(this).snapshot().pet?.breedId }
+            .getOrNull()
+        val petAvatarRes = PetBreeds.byId(petBreedId ?: "")?.avatarRes ?: R.drawable.cat_main
         view = FloatingPetView(
             context = this,
+            petAvatarRes = petAvatarRes,
             onMenuVisibilityChanged = { expanded ->
                 if (expanded) {
                     val direction = chooseMenuDirection(
@@ -167,12 +173,19 @@ class FloatingPetService : Service() {
         var downX = 0f
         var downY = 0f
         var moved = false
+        // 按下时若菜单已展开会先收起（便于拖动）；此时抬起不应再触发 performClick 重新展开
+        var suppressNextClick = false
 
         // 监听器负责拖动；未发生拖动时仍调用 performClick，保留无障碍点击语义。
         view.petHandle.setOnTouchListener { touchedView, event ->
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
-                    if (view.isMenuExpanded) view.closeMenu(immediate = true)
+                    if (view.isMenuExpanded) {
+                        view.closeMenu(immediate = true)
+                        suppressNextClick = true
+                    } else {
+                        suppressNextClick = false
+                    }
                     startX = params.x
                     startY = params.y
                     downX = event.rawX
@@ -210,9 +223,11 @@ class FloatingPetService : Service() {
                         }
                         runCatching { windowManager.updateViewLayout(view, params) }
                         savePosition(params.x, params.y)
-                    } else {
+                    } else if (!suppressNextClick) {
+                        // 普通点击：菜单开→关、菜单关→开
                         touchedView.performClick()
                     }
+                    suppressNextClick = false
                     true
                 }
                 else -> false

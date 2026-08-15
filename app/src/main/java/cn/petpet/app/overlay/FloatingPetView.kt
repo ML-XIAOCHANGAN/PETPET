@@ -20,13 +20,14 @@ enum class FloatingMenuDirection {
 }
 
 /**
- * 使用用户图片显示的悬浮小猫。
+ * 使用用户领养宠物头像显示的悬浮宠物。
  *
- * 三个动作围绕小猫排成半环，并从小猫中心依次滑出。菜单朝向由服务根据
- * 小猫距离屏幕四条边的远近决定，始终优先向屏幕内部展开。
+ * 三个动作围绕宠物排成半环，并从小猫中心依次滑出。菜单朝向由服务根据
+ * 宠物距离屏幕四条边的远近决定，始终优先向屏幕内部展开。
  */
 class FloatingPetView(
     context: Context,
+    private val petAvatarRes: Int,
     private val onMenuVisibilityChanged: (Boolean) -> Unit,
     private val onInteract: () -> Unit,
     private val onOpenApp: () -> Unit,
@@ -54,23 +55,18 @@ class FloatingPetView(
         clipToPadding = false
 
         petHandle.apply {
-            contentDescription = "悬浮小猫，点击展开环形菜单"
+            contentDescription = "悬浮宠物，点击展开环形菜单"
             isClickable = true
             scaleType = ImageView.ScaleType.FIT_CENTER
             setBackgroundColor(Color.TRANSPARENT)
-            setImageResource(R.drawable.cat_main)
+            setImageResource(petAvatarRes)
             setOnClickListener { this@FloatingPetView.performClick() }
             layoutParams = LayoutParams(dp(PET_SIZE_DP), dp(PET_SIZE_DP))
         }
         addView(petHandle)
 
-        menuButtons += emojiButton("🐾", "和小猫互动") {
+        menuButtons += emojiButton("🐾", "和小宠物互动") {
             onInteract()
-            petHandle.setImageResource(R.drawable.cat_wink)
-            handler.postDelayed(
-                { petHandle.setImageResource(R.drawable.cat_main) },
-                900L,
-            )
             closeMenu()
         }
         menuButtons += emojiButton("⌂", "返回应用") {
@@ -136,43 +132,22 @@ class FloatingPetView(
     fun closeMenu(immediate: Boolean = false) {
         if (!isMenuExpanded) return
         isMenuExpanded = false
-        petHandle.contentDescription = "悬浮小猫，点击展开环形菜单"
+        petHandle.contentDescription = "悬浮宠物，点击展开环形菜单"
 
-        if (immediate) {
-            menuButtons.forEach { it.visibility = View.GONE }
-            onMenuVisibilityChanged(false)
-            return
+        // 收起时不做"弹回中心"动画（用户反馈回弹幅度大），直接隐藏选项并收缩窗口；
+        // 展开时的选项弹动动画（playMenuReveal）保留。
+        menuButtons.forEach { it.visibility = View.GONE }
+        onMenuVisibilityChanged(false)
+        if (!immediate) {
+            handler.removeCallbacksAndMessages(null)
         }
-
-        val petCenterX = handleOffsetX + dp(PET_SIZE_DP) / 2f
-        val petCenterY = handleOffsetY + dp(PET_SIZE_DP) / 2f
-        menuButtons.forEachIndexed { index, button ->
-            val buttonCenterX = button.left + button.width / 2f
-            val buttonCenterY = button.top + button.height / 2f
-            button.animate()
-                .translationX(petCenterX - buttonCenterX)
-                .translationY(petCenterY - buttonCenterY)
-                .alpha(0f)
-                .scaleX(0.72f)
-                .scaleY(0.72f)
-                .setDuration(130L)
-                .setStartDelay(index * 18L)
-                .start()
-        }
-        handler.postDelayed(
-            {
-                menuButtons.forEach { it.visibility = View.GONE }
-                onMenuVisibilityChanged(false)
-            },
-            190L,
-        )
     }
 
     private fun openMenu() {
         if (isMenuExpanded) return
         isMenuExpanded = true
         menuButtons.forEach { it.visibility = View.VISIBLE }
-        petHandle.contentDescription = "悬浮小猫，点击收起环形菜单"
+        petHandle.contentDescription = "悬浮宠物，点击收起环形菜单"
         onMenuVisibilityChanged(true)
         post { playMenuReveal() }
     }

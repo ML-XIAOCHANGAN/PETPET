@@ -167,23 +167,15 @@ fun VoxelNavigationBar(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center,
                     ) {
-                        // 猫脸眼睛用"图标所在底色"：选中=primary 深色，未选中=表面色
-                        val catEyeColor = if (active) {
-                            MaterialTheme.colorScheme.primary
-                        } else {
-                            MaterialTheme.colorScheme.surface
-                        }
-                        Canvas(Modifier.size(20.dp)) {
-                            when (section) {
-                                HomeSection.MY_PET -> drawCatFaceIcon(
-                                    color = foreground,
-                                    size = size.minDimension,
-                                    eyeColor = catEyeColor,
-                                )
-                                HomeSection.GROWTH -> drawDiaryIcon(foreground, size.minDimension)
-                                HomeSection.COMMUNITY -> drawCommunityIcon(foreground, size.minDimension)
-                            }
-                        }
+                        // 图标统一用 emoji（猫脸/日记/社区）
+                        Text(
+                            text = when (section) {
+                                HomeSection.MY_PET -> "🐱"
+                                HomeSection.GROWTH -> "📖"
+                                HomeSection.COMMUNITY -> "👥"
+                            },
+                            style = MaterialTheme.typography.titleMedium,
+                        )
                         Spacer(Modifier.height(2.dp))
                         Text(
                             text = section.title,

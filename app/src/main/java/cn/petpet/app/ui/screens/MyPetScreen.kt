@@ -45,14 +45,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
@@ -73,9 +68,6 @@ import cn.petpet.app.ui.components.drawChatBubbleIcon
 import cn.petpet.app.ui.components.drawHeartIcon
 import cn.petpet.app.ui.components.drawPawIcon
 import kotlinx.coroutines.delay
-import kotlin.math.PI
-import kotlin.math.cos
-import kotlin.math.sin
 
 /**
  * 单屏宠物首页。
@@ -90,7 +82,6 @@ fun MyPetScreen(
     onSendMessage: (String) -> Unit,
     onDarkThemeChange: (Boolean) -> Unit,
     onChatConfigChange: (ChatProvider, String) -> Unit,
-    onOpenSettings: () -> Unit = {},
     chatFocusRequest: Long = 0L,
 ) {
     val pet = requireNotNull(state.pet)
@@ -150,7 +141,10 @@ fun MyPetScreen(
                     ),
                 )
                 Spacer(Modifier.width(2.dp))
-                FloatingPetImageButton(modifier = Modifier.size(46.dp))
+                FloatingPetImageButton(
+                    breedId = pet.breedId,
+                    modifier = Modifier.size(46.dp),
+                )
             }
             Spacer(Modifier.weight(1f))
             ThemeToggleButton(
@@ -235,10 +229,6 @@ fun MyPetScreen(
             chatApiKey = state.chatApiKey,
             onDarkThemeChange = onDarkThemeChange,
             onChatConfigChange = onChatConfigChange,
-            onResetAndReAdopt = {
-                showSettings = false
-                onOpenSettings()
-            },
             onDismiss = { showSettings = false },
         )
     }
@@ -250,7 +240,6 @@ private fun ThemeToggleButton(
     onClick: () -> Unit,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
-    val iconColor = if (darkTheme) Color(0xFFFFC24B) else MaterialTheme.colorScheme.primary
     Surface(
         modifier = Modifier
             .size(44.dp)
@@ -265,61 +254,11 @@ private fun ThemeToggleButton(
         tonalElevation = 2.dp,
     ) {
         Box(contentAlignment = Alignment.Center) {
-            Canvas(modifier = Modifier.size(24.dp)) {
-                if (darkTheme) {
-                    drawSunIcon(iconColor)
-                } else {
-                    drawMoonIcon(iconColor)
-                }
-            }
+            Text(
+                text = if (darkTheme) "☀️" else "🌙",
+                style = MaterialTheme.typography.titleMedium,
+            )
         }
-    }
-}
-
-/** 标准月牙 + 两颗小星星：日间显示，提示可切换到夜晚。 */
-private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawMoonIcon(color: Color) {
-    val r = size.minDimension / 2f
-    val center = this.center
-    // 标准月牙：外圆 + 偏移内圆差集（Path 直接构造）
-    val crescent = Path().apply {
-        // 外圆大部分（右下→左上）
-        arcTo(
-            rect = Rect(center.x - r * 0.92f, center.y - r * 0.92f, center.x + r * 0.92f, center.y + r * 0.92f),
-            startAngleDegrees = 40f,
-            sweepAngleDegrees = 280f,
-            forceMoveTo = true,
-        )
-        // 内圆反向（挖出月牙内侧）
-        arcTo(
-            rect = Rect(center.x - r * 0.15f, center.y - r * 0.78f, center.x + r * 1.05f, center.y + r * 0.78f),
-            startAngleDegrees = 40f + 280f,
-            sweepAngleDegrees = -280f,
-            forceMoveTo = false,
-        )
-        close()
-    }
-    drawPath(crescent, color)
-    // 点缀小星星
-    drawCircle(color, r * 0.09f, center + Offset(-r * 0.66f, -r * 0.70f))
-    drawCircle(color, r * 0.06f, center + Offset(r * 0.20f, -r * 0.88f))
-}
-
-/** 太阳圆 + 八道光芒：夜间显示，提示可切换到白天。 */
-private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawSunIcon(color: Color) {
-    val r = size.minDimension / 2f
-    val center = this.center
-    drawCircle(color, r * 0.40f, center)
-    val rays = 8
-    repeat(rays) { i ->
-        val angle = (360f / rays * i) * (PI / 180f).toFloat()
-        val dir = Offset(cos(angle), sin(angle))
-        drawLine(
-            color = color,
-            start = center + dir * (r * 0.60f),
-            end = center + dir * (r * 0.92f),
-            strokeWidth = r * 0.14f,
-            cap = StrokeCap.Round,
-        )
     }
 }
 

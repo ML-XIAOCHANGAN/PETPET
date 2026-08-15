@@ -54,7 +54,6 @@ fun SettingsDialog(
     chatApiKey: String,
     onDarkThemeChange: (Boolean) -> Unit,
     onChatConfigChange: (ChatProvider, String) -> Unit,
-    onResetAndReAdopt: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     val breed = PetBreeds.byId(pet.breedId)
@@ -219,38 +218,6 @@ fun SettingsDialog(
                 )
 
                 HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
-
-                // 重新领养（危险操作，需确认）
-                val confirmReset = remember { mutableStateOf(false) }
-                if (confirmReset.value) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    ) {
-                        VoxelButton(
-                            text = "取消",
-                            onClick = { confirmReset.value = false },
-                            style = VoxelButtonStyle.NEUTRAL,
-                            modifier = Modifier.weight(1f),
-                        )
-                        VoxelButton(
-                            text = "确认重新领养",
-                            onClick = {
-                                confirmReset.value = false
-                                onResetAndReAdopt()
-                            },
-                            style = VoxelButtonStyle.DANGER,
-                            modifier = Modifier.weight(1f),
-                        )
-                    }
-                } else {
-                    VoxelButton(
-                        text = "重新领养一只新伙伴",
-                        onClick = { confirmReset.value = true },
-                        style = VoxelButtonStyle.NEUTRAL,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
 
                 // 关闭
                 VoxelButton(

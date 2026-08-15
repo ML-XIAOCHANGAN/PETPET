@@ -118,19 +118,6 @@ class PetPetViewModel(application: Application) : AndroidViewModel(application) 
         showNotice(snapshot.storageWarning ?: "领养成功，${normalized}以后就是你的唯一伙伴啦")
     }
 
-    /** 重置宠物并重新进入领养流程（设置页"重新领养"）。 */
-    fun resetAndReAdopt() {
-        val snapshot = repository.resetPet()
-        applySnapshot(snapshot)
-        _state.update {
-            it.copy(
-                showAdoption = true,
-                candidateBreed = PetBreeds.random(),
-            )
-        }
-        showNotice("好的，去迎接一位新伙伴吧")
-    }
-
     fun selectSection(section: HomeSection) {
         _state.update { it.copy(section = section) }
     }
