@@ -151,7 +151,7 @@ fun VoxelNavigationBar(
                 Surface(
                     modifier = Modifier
                         .weight(1f)
-                        .height(52.dp)
+                        .height(56.dp)
                         .clickable(
                             role = Role.Tab,
                             interactionSource = interactionSource,
@@ -176,10 +176,10 @@ fun VoxelNavigationBar(
                             },
                             style = MaterialTheme.typography.titleMedium,
                         )
-                        Spacer(Modifier.height(2.dp))
+                        Spacer(Modifier.height(4.dp))
                         Text(
                             text = section.title,
-                            style = MaterialTheme.typography.labelSmall,
+                            style = MaterialTheme.typography.labelMedium,
                             fontWeight = if (active) FontWeight.Bold else FontWeight.Medium,
                         )
                     }

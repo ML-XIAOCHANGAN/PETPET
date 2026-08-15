@@ -162,16 +162,17 @@ class FloatingPetView(
             button.translationX = petCenterX - buttonCenterX
             button.translationY = petCenterY - buttonCenterY
             button.alpha = 0f
-            button.scaleX = 0.72f
-            button.scaleY = 0.72f
+            button.scaleX = 0.85f
+            button.scaleY = 0.85f
             button.animate()
                 .translationX(0f)
                 .translationY(0f)
                 .alpha(1f)
                 .scaleX(1f)
                 .scaleY(1f)
-                .setDuration(260L)
-                .setStartDelay(index * 52L)
+                // 更紧凑的节奏：190ms 弹出 + 38ms 依次错峰，总时长约 266ms（原 260+52*2=364ms）
+                .setDuration(190L)
+                .setStartDelay(index * 38L)
                 .start()
         }
     }

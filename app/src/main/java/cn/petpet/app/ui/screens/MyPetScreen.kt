@@ -316,7 +316,7 @@ private fun TypingBubble() {
     var dots by remember { mutableIntStateOf(0) }
     LaunchedEffect(Unit) {
         while (true) {
-            delay(380)
+            delay(420)
             dots = (dots + 1) % 4
         }
     }
@@ -507,11 +507,18 @@ private fun ChatInputBar(
             onValueChange = onInputChange,
             modifier = Modifier
                 .weight(1f)
+                .height(46.dp)
                 .focusRequester(focusRequester),
-            placeholder = { Text("今天过得还好吗") },
+            placeholder = {
+                Text(
+                    "今天过得还好吗",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            },
             leadingIcon = { Text("💬") },
             singleLine = true,
-            shape = RoundedCornerShape(20.dp),
+            shape = RoundedCornerShape(23.dp),
+            textStyle = MaterialTheme.typography.bodyMedium,
         )
         VoxelButton(
             text = "发送",
