@@ -36,7 +36,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import cn.petpet.app.R
 import cn.petpet.app.model.DiaryEntry
+import cn.petpet.app.model.PetBreeds
 import cn.petpet.app.model.PetProfile
+import cn.petpet.app.model.PetType
 import cn.petpet.app.ui.components.InteractiveBlackCatAvatar
 import cn.petpet.app.ui.components.VoxelButton
 import cn.petpet.app.ui.components.VoxelButtonStyle
@@ -51,6 +53,7 @@ fun GrowthScreen(
     onAddDiary: (String, String) -> Unit,
 ) {
     var showComposer by rememberSaveable { mutableStateOf(false) }
+    val isDog = PetBreeds.byId(pet.breedId)?.type == PetType.DOG
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -80,7 +83,7 @@ fun GrowthScreen(
             ) {
                 Column(Modifier.weight(1f)) {
                     Text(
-                        text = "小猫日记",
+                        text = if (isDog) "小狗日记" else "小猫日记",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
                     )
@@ -113,8 +116,8 @@ fun GrowthScreen(
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
                         Image(
-                            painter = painterResource(R.drawable.cat_paw),
-                            contentDescription = "小猫爪印",
+                            painter = painterResource(if (isDog) R.drawable.dog_paw else R.drawable.cat_paw),
+                            contentDescription = if (isDog) "小狗爪印" else "小猫爪印",
                             modifier = Modifier.size(112.dp),
                             contentScale = ContentScale.Fit,
                         )
@@ -152,6 +155,7 @@ private fun MyProfileCard(pet: PetProfile) {
             ChronoUnit.DAYS.between(LocalDate.parse(pet.adoptedAt), LocalDate.now()) + 1
         }.getOrDefault(1)
     }
+    val isDog = PetBreeds.byId(pet.breedId)?.type == PetType.DOG
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -170,7 +174,7 @@ private fun MyProfileCard(pet: PetProfile) {
                 )
                 Spacer(Modifier.width(16.dp))
                 Column {
-                    Text("猫咪主人", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Text(if (isDog) "小狗主人" else "猫咪主人", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                     // 相处天数：突出展示（大数字 + 爱心 + 文字）
                     val primaryColor = MaterialTheme.colorScheme.primary
                     Row(verticalAlignment = Alignment.CenterVertically) {

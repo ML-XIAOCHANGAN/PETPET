@@ -90,6 +90,8 @@ internal object PersistenceCodecs {
                             liked = if (item.has("liked")) item.getBoolean("liked") else false,
                             likeCount = likeCount,
                             comments = comments,
+                            collected = if (item.has("collected")) item.getBoolean("collected") else false,
+                            disliked = if (item.has("disliked")) item.getBoolean("disliked") else false,
                         ),
                     )
                 }
@@ -120,7 +122,9 @@ internal object PersistenceCodecs {
                     .put("time", post.time)
                     .put("liked", post.liked)
                     .put("likeCount", post.likeCount)
-                    .put("comments", comments),
+                    .put("comments", comments)
+                    .put("collected", post.collected)
+                    .put("disliked", post.disliked),
             )
         }
         return array.toString()

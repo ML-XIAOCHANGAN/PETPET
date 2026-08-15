@@ -37,6 +37,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -63,6 +65,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import cn.petpet.app.R
 import cn.petpet.app.model.CommunityPost
+import cn.petpet.app.model.PetBreeds
+import cn.petpet.app.model.PetProfile
+import cn.petpet.app.model.PetType
 import cn.petpet.app.ui.components.VoxelButton
 import cn.petpet.app.ui.components.drawCommentIcon
 import cn.petpet.app.ui.components.drawHeartFilledIcon
@@ -85,6 +90,7 @@ private val communityFrames = listOf(
 
 @Composable
 fun CommunityScreen(
+    pet: PetProfile,
     posts: List<CommunityPost>,
     online: Boolean = false,
     onRefreshNetwork: () -> Unit = {},
@@ -92,9 +98,12 @@ fun CommunityScreen(
     onToggleLike: (Long) -> Unit,
     onAddComment: (Long, String) -> Unit,
     onReport: () -> Unit,
+    onToggleCollect: (Long) -> Unit = {},
+    onToggleDislike: (Long) -> Unit = {},
 ) {
     var postText by rememberSaveable { mutableStateOf("") }
     var composerExpanded by rememberSaveable { mutableStateOf(false) }
+    val isDog = PetBreeds.byId(pet.breedId)?.type == PetType.DOG
 
     // 首次进入尝试拉取在线动态（失败静默，保持离线模式）
     LaunchedEffect(Unit) {
@@ -150,6 +159,7 @@ fun CommunityScreen(
 
         item {
             CommunityComposer(
+                isDog = isDog,
                 expanded = composerExpanded,
                 text = postText,
                 onExpandedChange = { composerExpanded = it },
@@ -168,6 +178,8 @@ fun CommunityScreen(
                 onToggleLike = { onToggleLike(post.id) },
                 onAddComment = { onAddComment(post.id, it) },
                 onReport = onReport,
+                onToggleCollect = { onToggleCollect(post.id) },
+                onToggleDislike = { onToggleDislike(post.id) },
             )
         }
     }
@@ -271,6 +283,7 @@ private fun CommunityReel() {
 
 @Composable
 private fun CommunityComposer(
+    isDog: Boolean,
     expanded: Boolean,
     text: String,
     onExpandedChange: (Boolean) -> Unit,
@@ -335,7 +348,7 @@ private fun CommunityComposer(
                     color = MaterialTheme.colorScheme.secondaryContainer,
                 ) {
                     Image(
-                        painter = painterResource(R.drawable.cat_paw),
+                        painter = painterResource(if (isDog) R.drawable.dog_paw else R.drawable.cat_paw),
                         contentDescription = null,
                         modifier = Modifier.padding(4.dp),
                         contentScale = ContentScale.Fit,
@@ -363,9 +376,13 @@ private fun PostCard(
     onToggleLike: () -> Unit,
     onAddComment: (String) -> Unit,
     onReport: () -> Unit,
+    onToggleCollect: () -> Unit,
+    onToggleDislike: () -> Unit,
 ) {
     var showCommentInput by rememberSaveable(post.id) { mutableStateOf(false) }
     var comment by rememberSaveable(post.id) { mutableStateOf("") }
+    // 三点菜单展开状态
+    var menuExpanded by remember { mutableStateOf(false) }
     var playing by rememberSaveable(post.id) { mutableStateOf(false) }
     val startFrame = remember(post.id) { (post.id % communityFrames.size).toInt().absoluteValue }
     var frameIndex by rememberSaveable(post.id) { mutableIntStateOf(startFrame) }
@@ -378,7 +395,9 @@ private fun PostCard(
     }
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .graphicsLayer { alpha = if (post.disliked) 0.55f else 1f },
         shape = RoundedCornerShape(28.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
@@ -413,11 +432,46 @@ private fun PostCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                RoundActionButton(
-                    text = "•••",
-                    description = "举报这条动态",
-                    onClick = onReport,
-                )
+                if (post.collected) {
+                    Text(
+                        "⭐",
+                        modifier = Modifier.padding(end = 4.dp),
+                        style = MaterialTheme.typography.titleSmall,
+                    )
+                }
+                Box {
+                    RoundActionButton(
+                        text = "•••",
+                        description = if (menuExpanded) "收起操作菜单" else "更多操作：举报、收藏、不喜欢",
+                        onClick = { menuExpanded = true },
+                    )
+                    DropdownMenu(
+                        expanded = menuExpanded,
+                        onDismissRequest = { menuExpanded = false },
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("举报") },
+                            onClick = {
+                                menuExpanded = false
+                                onReport()
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(if (post.collected) "取消收藏" else "收藏") },
+                            onClick = {
+                                menuExpanded = false
+                                onToggleCollect()
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(if (post.disliked) "取消不喜欢" else "不喜欢") },
+                            onClick = {
+                                menuExpanded = false
+                                onToggleDislike()
+                            },
+                        )
+                    }
+                }
             }
 
             Spacer(Modifier.height(10.dp))

@@ -136,6 +136,26 @@ class PetPetRepository(
         return snapshot(readResult.storageWarning)
     }
 
+    /** 收藏 / 取消收藏（三点菜单，本地持久化）。 */
+    fun toggleCollect(postId: Long): LocalSnapshot {
+        val readResult = readPosts()
+        val posts = readResult.posts.map { post ->
+            if (post.id != postId) post else post.copy(collected = !post.collected)
+        }
+        writePosts(posts)
+        return snapshot(readResult.storageWarning)
+    }
+
+    /** 不喜欢 / 取消不喜欢（三点菜单，本地持久化）。 */
+    fun toggleDislike(postId: Long): LocalSnapshot {
+        val readResult = readPosts()
+        val posts = readResult.posts.map { post ->
+            if (post.id != postId) post else post.copy(disliked = !post.disliked)
+        }
+        writePosts(posts)
+        return snapshot(readResult.storageWarning)
+    }
+
     fun addComment(postId: Long, text: String): LocalSnapshot {
         val readResult = readPosts()
         val posts = readResult.posts.map { post ->

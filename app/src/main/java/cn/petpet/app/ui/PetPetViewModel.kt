@@ -341,6 +341,16 @@ class PetPetViewModel(application: Application) : AndroidViewModel(application) 
         showNotice("已收到举报，演示版会将记录交给审核队列")
     }
 
+    /** 收藏 / 取消收藏（帖子三点菜单）。 */
+    fun toggleCollect(postId: Long) {
+        applySnapshot(repository.toggleCollect(postId))
+    }
+
+    /** 不喜欢 / 取消不喜欢（帖子三点菜单）。 */
+    fun toggleDislike(postId: Long) {
+        applySnapshot(repository.toggleDislike(postId))
+    }
+
     fun clearNotice() {
         _state.update { it.copy(notice = null) }
     }

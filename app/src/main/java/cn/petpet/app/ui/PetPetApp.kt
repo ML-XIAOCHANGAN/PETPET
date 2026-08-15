@@ -110,6 +110,7 @@ fun PetPetApp(
                                 onAddDiary = viewModel::addDiaryEntry,
                             )
                             HomeSection.COMMUNITY -> CommunityScreen(
+                                pet = requireNotNull(state.pet),
                                 posts = state.posts,
                                 online = state.communityOnline,
                                 onRefreshNetwork = viewModel::refreshCommunityFromNetwork,
@@ -117,6 +118,8 @@ fun PetPetApp(
                                 onToggleLike = viewModel::toggleLike,
                                 onAddComment = viewModel::addComment,
                                 onReport = viewModel::reportPost,
+                                onToggleCollect = viewModel::toggleCollect,
+                                onToggleDislike = viewModel::toggleDislike,
                             )
                         }
                     }

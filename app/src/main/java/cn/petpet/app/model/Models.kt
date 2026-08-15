@@ -34,6 +34,8 @@ data class CommunityPost(
     val liked: Boolean = false,
     val likeCount: Int = 0,
     val comments: List<CommunityComment> = emptyList(),
+    val collected: Boolean = false,
+    val disliked: Boolean = false,
 )
 
 enum class HomeSection(val title: String, val symbol: String) {
