@@ -143,7 +143,7 @@ fun MyPetScreen(
                 Spacer(Modifier.width(2.dp))
                 FloatingPetImageButton(
                     breedId = pet.breedId,
-                    modifier = Modifier.size(46.dp),
+                    modifier = Modifier.size(48.dp),
                 )
             }
             Spacer(Modifier.weight(1f))
@@ -242,7 +242,7 @@ private fun ThemeToggleButton(
     val interactionSource = remember { MutableInteractionSource() }
     Surface(
         modifier = Modifier
-            .size(44.dp)
+            .size(48.dp)
             .clickable(
                 interactionSource = interactionSource,
                 indication = null,

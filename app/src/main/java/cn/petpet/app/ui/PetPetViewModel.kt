@@ -244,6 +244,11 @@ class PetPetViewModel(application: Application) : AndroidViewModel(application) 
             val replyText = if (response != null && !response.degraded && response.reply.isNotBlank()) {
                 response.reply
             } else {
+                // T-013：网络层失败（response == null）时明确提示离线陪伴状态；
+                // 安全/限流等 degraded 响应本身有内容，不额外打扰
+                if (response == null) {
+                    showNotice("网络不可用，小猫改用离线方式陪你")
+                }
                 replyFor(normalized)
             }
             val replyMessage = ChatMessage(runtimeValues.nextId(), false, replyText, now)

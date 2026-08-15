@@ -219,6 +219,31 @@ fun SettingsDialog(
 
                 HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
 
+                // ── 隐私与权限说明（T-007 合规轻量落地）──
+                var showPrivacy by remember { mutableStateOf(false) }
+                SettingRow(
+                    title = "隐私与权限说明",
+                    subtitle = if (showPrivacy) "点击收起" else "数据存储、AI 对话与权限用途",
+                ) {
+                    VoxelButton(
+                        text = if (showPrivacy) "收起" else "查看",
+                        onClick = { showPrivacy = !showPrivacy },
+                        compact = true,
+                    )
+                }
+                if (showPrivacy) {
+                    Text(
+                        text = "• 数据全部保存在你的设备本地（宠物、好感度、社区、日记），没有账号体系，不会上传到云端。\n" +
+                            "• AI 对话：填入 API Key 后直连对应模型服务（Key 仅存本机）；未填时走本机网关或离线回复。模型为生成式 AI，回复仅供参考。\n" +
+                            "• 悬浮窗权限：用于将宠物显示在其他应用上层陪伴你；通知权限：用于悬浮服务常驻提示。两项均可在系统设置中随时关闭。\n" +
+                            "• 应用不含广告，不收集位置、通讯录等敏感信息。",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+
+                HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
+
                 // 关闭
                 VoxelButton(
                     text = "关闭",

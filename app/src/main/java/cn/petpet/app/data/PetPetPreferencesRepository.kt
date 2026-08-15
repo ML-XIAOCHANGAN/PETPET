@@ -18,6 +18,11 @@ import java.time.format.DateTimeFormatter
 
 private val Context.petPetDataStore: DataStore<Preferences> by preferencesDataStore(
     name = "petpet_preferences",
+    // 版本化迁移机制（T-012）：Preferences 为无结构 key-value，新增 key 天然兼容；
+    // 未来若需结构性变更（如整段重编码），在此追加 DataMigration 并按序执行。
+    produceMigrations = { _ ->
+        listOf()
+    },
 )
 
 /**
