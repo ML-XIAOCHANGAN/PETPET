@@ -165,6 +165,7 @@ private fun MyProfileCard(pet: PetProfile) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 InteractiveBlackCatAvatar(
                     onInteract = {},
+                    breedId = pet.breedId,
                     modifier = Modifier.size(104.dp),
                 )
                 Spacer(Modifier.width(16.dp))

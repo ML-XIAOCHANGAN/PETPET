@@ -47,6 +47,7 @@ class PetPetRepository(
                 name = it,
                 affection = preferences.getInt(KEY_AFFECTION, 0).coerceAtLeast(0),
                 adoptedAt = preferences.getString(KEY_ADOPTED_AT, "") ?: "",
+                breedId = preferences.getString(KEY_PET_BREED, "black_cat") ?: "black_cat",
             )
         }
         return LocalSnapshot(
@@ -63,12 +64,13 @@ class PetPetRepository(
         )
     }
 
-    fun adoptPet(name: String): LocalSnapshot {
+    fun adoptPet(name: String, breedId: String = "black_cat"): LocalSnapshot {
         if (!preferences.getString(KEY_PET_NAME, null).isNullOrBlank()) {
             return snapshot()
         }
         preferences.edit()
             .putString(KEY_PET_NAME, name.trim())
+            .putString(KEY_PET_BREED, breedId)
             .putInt(KEY_AFFECTION, 0)
             .putString(KEY_ADOPTED_AT, runtimeValues.today().format(dateFormatter))
             .apply()
@@ -223,6 +225,7 @@ class PetPetRepository(
     private companion object {
         const val TAG = "PetPetRepository"
         const val KEY_PET_NAME = "pet_name"
+        const val KEY_PET_BREED = "pet_breed"
         const val KEY_AFFECTION = "affection"
         const val KEY_ADOPTED_AT = "adopted_at"
         const val KEY_PROGRESS_DATE = "progress_date"

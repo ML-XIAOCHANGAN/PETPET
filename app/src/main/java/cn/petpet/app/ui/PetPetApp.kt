@@ -20,10 +20,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cn.petpet.app.model.HomeSection
 import cn.petpet.app.ui.components.VoxelNavigationBar
+import cn.petpet.app.ui.components.AdoptionDialog
 import cn.petpet.app.ui.screens.CommunityScreen
 import cn.petpet.app.ui.screens.GrowthScreen
 import cn.petpet.app.ui.screens.MyPetScreen
@@ -54,10 +56,12 @@ fun PetPetApp(
             containerColor = MaterialTheme.colorScheme.background,
             snackbarHost = { SnackbarHost(snackbarHostState) },
             bottomBar = {
-                VoxelNavigationBar(
-                    selected = state.section,
-                    onSelect = viewModel::selectSection,
-                )
+                if (!state.showAdoption) {
+                    VoxelNavigationBar(
+                        selected = state.section,
+                        onSelect = viewModel::selectSection,
+                    )
+                }
             },
         ) { padding ->
             Box(
@@ -81,27 +85,47 @@ fun PetPetApp(
                     },
                     label = "底部页面切换",
                 ) { section ->
-                    when (section) {
-                        HomeSection.MY_PET -> MyPetScreen(
-                            state = state,
-                            onInteract = viewModel::interact,
-                            onSendMessage = viewModel::sendMessage,
-                            onDarkThemeChange = viewModel::setDarkTheme,
-                            chatFocusRequest = chatFocusRequest,
+                    if (state.showAdoption) {
+                        // 领养流程中：宠物尚未确认，显示欢迎占位
+                        androidx.compose.material3.Text(
+                            text = "🐾",
+                            modifier = Modifier.align(Alignment.Center),
+                            style = MaterialTheme.typography.displayLarge,
                         )
-                        HomeSection.GROWTH -> GrowthScreen(
-                            pet = requireNotNull(state.pet),
-                            diaryEntries = state.diaryEntries,
-                            onAddDiary = viewModel::addDiaryEntry,
-                        )
-                        HomeSection.COMMUNITY -> CommunityScreen(
-                            posts = state.posts,
-                            online = state.communityOnline,
-                            onRefreshNetwork = viewModel::refreshCommunityFromNetwork,
-                            onCreatePost = viewModel::createPost,
-                            onToggleLike = viewModel::toggleLike,
-                            onAddComment = viewModel::addComment,
-                            onReport = viewModel::reportPost,
+                    } else {
+                        when (section) {
+                            HomeSection.MY_PET -> MyPetScreen(
+                                state = state,
+                                onInteract = viewModel::interact,
+                                onSendMessage = viewModel::sendMessage,
+                                onDarkThemeChange = viewModel::setDarkTheme,
+                                chatFocusRequest = chatFocusRequest,
+                            )
+                            HomeSection.GROWTH -> GrowthScreen(
+                                pet = requireNotNull(state.pet),
+                                diaryEntries = state.diaryEntries,
+                                onAddDiary = viewModel::addDiaryEntry,
+                            )
+                            HomeSection.COMMUNITY -> CommunityScreen(
+                                posts = state.posts,
+                                online = state.communityOnline,
+                                onRefreshNetwork = viewModel::refreshCommunityFromNetwork,
+                                onCreatePost = viewModel::createPost,
+                                onToggleLike = viewModel::toggleLike,
+                                onAddComment = viewModel::addComment,
+                                onReport = viewModel::reportPost,
+                            )
+                        }
+                    }
+                }
+
+                // 首次领养流程：随机抽取 → 品种介绍 → 命名
+                state.candidateBreed?.let { breed ->
+                    if (state.showAdoption) {
+                        AdoptionDialog(
+                            breed = breed,
+                            onRoll = viewModel::rollCandidatePet,
+                            onAdopt = viewModel::adoptPet,
                         )
                     }
                 }

@@ -165,6 +165,7 @@ fun MyPetScreen(
                     greetingRequest += 1
                 },
                 thinking = state.petTyping,
+                breedId = pet.breedId,
                 modifier = Modifier
                     .align(Alignment.Center)
                     .offset(y = 30.dp)

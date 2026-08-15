@@ -4,6 +4,7 @@ data class PetProfile(
     val name: String,
     val affection: Int,
     val adoptedAt: String,
+    val breedId: String = "black_cat",
 )
 
 data class DailyProgress(
@@ -62,4 +63,7 @@ data class PetPetUiState(
     val communityOnline: Boolean = false,
     /** 对话弹窗：(消息id, 文本)，UI 显示 5 秒后自动清除。 */
     val chatBubble: Pair<Long, String>? = null,
+    /** 领养流程：无宠物时显示抽卡+介绍+命名。 */
+    val showAdoption: Boolean = false,
+    val candidateBreed: PetBreed? = null,
 )

@@ -11,6 +11,7 @@ import cn.petpet.app.data.PetPetRepository
 import cn.petpet.app.model.ChatMessage
 import cn.petpet.app.model.CommunityPost
 import cn.petpet.app.model.HomeSection
+import cn.petpet.app.model.PetBreeds
 import cn.petpet.app.model.PetPetUiState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -35,12 +36,15 @@ class PetPetViewModel(application: Application) : AndroidViewModel(application) 
         "先深呼吸一下，再开始今天吧。",
         "喵～今天有什么想和我说的吗？",
     ).random()
-    private val initialSnapshot = repository.snapshot().let { snapshot ->
-        if (snapshot.pet == null) repository.adoptPet("小铃铛") else snapshot
-    }
+    private val initialSnapshot = repository.snapshot()
 
     private val _state = MutableStateFlow(
-        initialSnapshot.toUiState().copy(greeting = startupGreeting),
+        initialSnapshot.toUiState().copy(
+            greeting = startupGreeting,
+            // 没有宠物时进入领养流程：随机抽一只候选
+            showAdoption = initialSnapshot.pet == null,
+            candidateBreed = if (initialSnapshot.pet == null) PetBreeds.random() else null,
+        ),
     )
     val state: StateFlow<PetPetUiState> = _state.asStateFlow()
 
@@ -65,15 +69,28 @@ class PetPetViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    /** 领养流程：重新随机抽取一只宠物（用户不满意可换）。 */
+    fun rollCandidatePet() {
+        _state.update { it.copy(candidateBreed = PetBreeds.random()) }
+    }
+
+    /** 领养流程：确认领养当前候选宠物并命名。 */
     fun adoptPet(name: String) {
         val normalized = name.trim()
         if (normalized.length !in 1..12) {
-            showNotice("小猫名字需要是 1 至 12 个字符")
+            showNotice("宠物名字需要是 1 至 12 个字符")
             return
         }
-        val snapshot = repository.adoptPet(normalized)
+        val breed = _state.value.candidateBreed ?: PetBreeds.random()
+        val snapshot = repository.adoptPet(normalized, breed.id)
         applySnapshot(snapshot)
-        showNotice(snapshot.storageWarning ?: "领养成功，${normalized}以后就是你的唯一小猫啦")
+        _state.update {
+            it.copy(
+                showAdoption = false,
+                candidateBreed = null,
+            )
+        }
+        showNotice(snapshot.storageWarning ?: "领养成功，${normalized}以后就是你的唯一伙伴啦")
     }
 
     fun selectSection(section: HomeSection) {
