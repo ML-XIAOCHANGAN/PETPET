@@ -12,6 +12,8 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -63,6 +65,7 @@ import cn.petpet.app.domain.AffectionRules
 import cn.petpet.app.model.PetPetUiState
 import cn.petpet.app.overlay.FloatingPetImageButton
 import cn.petpet.app.ui.components.InteractiveBlackCatAvatar
+import cn.petpet.app.ui.components.SettingsDialog
 import cn.petpet.app.ui.components.VoxelButton
 import cn.petpet.app.ui.components.drawCalendarIcon
 import cn.petpet.app.ui.components.drawChatBubbleIcon
@@ -85,6 +88,7 @@ fun MyPetScreen(
     onInteract: () -> Unit,
     onSendMessage: (String) -> Unit,
     onDarkThemeChange: (Boolean) -> Unit,
+    onOpenSettings: () -> Unit = {},
     chatFocusRequest: Long = 0L,
 ) {
     val pet = requireNotNull(state.pet)
@@ -93,6 +97,7 @@ fun MyPetScreen(
     var greetingRequest by remember { mutableIntStateOf(0) }
     val focusRequester = remember { FocusRequester() }
     val keyboardController = LocalSoftwareKeyboardController.current
+    var showSettings by remember { mutableStateOf(false) }
 
     // 对话弹窗：小猫回复后弹出气泡，显示 5 秒后自动隐藏
     val bubble = state.chatBubble
@@ -136,6 +141,11 @@ fun MyPetScreen(
                     text = "MyPet",
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Black,
+                    modifier = Modifier.clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = { showSettings = true },
+                    ),
                 )
                 Spacer(Modifier.width(2.dp))
                 FloatingPetImageButton(modifier = Modifier.size(46.dp))
@@ -211,6 +221,20 @@ fun MyPetScreen(
                 chatInput = ""
             },
             focusRequester = focusRequester,
+        )
+    }
+
+    // 设置对话框：点击左上角"MyPet"打开
+    if (showSettings) {
+        SettingsDialog(
+            pet = pet,
+            darkTheme = state.darkTheme,
+            onDarkThemeChange = onDarkThemeChange,
+            onResetAndReAdopt = {
+                showSettings = false
+                onOpenSettings()
+            },
+            onDismiss = { showSettings = false },
         )
     }
 }
@@ -296,30 +320,50 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawSunIcon(color: 
 
 @Composable
 private fun GreetingBubble(text: String) {
+    val primaryColor = MaterialTheme.colorScheme.primary
+    val onPrimary = MaterialTheme.colorScheme.onPrimary
+    // 顶部小尾巴（用画布画一个倒三角，指向小猫）
     Box(
         modifier = Modifier
-            .width(270.dp)
-            .height(154.dp),
+            .widthIn(max = 300.dp)
+            .wrapContentHeight()
+            .padding(top = 10.dp),
         contentAlignment = Alignment.Center,
     ) {
-        Image(
-            painter = painterResource(R.drawable.speech_bubble),
-            contentDescription = null,
-            modifier = Modifier.fillMaxSize(),
-            contentScale = ContentScale.FillBounds,
-        )
-        Text(
-            text = text,
-            modifier = Modifier
-                .fillMaxWidth()
-                .offset(y = (-9).dp)
-                .padding(horizontal = 32.dp),
-            color = androidx.compose.ui.graphics.Color.Black,
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.SemiBold,
-            textAlign = TextAlign.Center,
-            maxLines = 3,
-        )
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+        ) {
+            Surface(
+                shape = RoundedCornerShape(22.dp),
+                color = primaryColor,
+                shadowElevation = 3.dp,
+            ) {
+                Text(
+                    text = text,
+                    modifier = Modifier.padding(horizontal = 18.dp, vertical = 13.dp),
+                    color = onPrimary,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium,
+                    textAlign = TextAlign.Center,
+                    maxLines = 4,
+                )
+            }
+            // 小尾巴
+            Canvas(
+                modifier = Modifier
+                    .size(width = 22.dp, height = 12.dp)
+                    .offset(y = (-1).dp),
+            ) {
+                val tailPath = Path().apply {
+                    moveTo(size.width / 2f, size.height) // 尖端朝下
+                    lineTo(0f, 0f)
+                    lineTo(size.width, 0f)
+                    close()
+                }
+                drawPath(tailPath, primaryColor)
+            }
+        }
     }
 }
 
@@ -333,28 +377,47 @@ private fun TypingBubble() {
         }
     }
     val dotsText = ".".repeat(dots)
+    val primaryColor = MaterialTheme.colorScheme.primary
+    val onPrimary = MaterialTheme.colorScheme.onPrimary
     Box(
         modifier = Modifier
-            .width(150.dp)
-            .height(70.dp),
+            .widthIn(max = 180.dp)
+            .wrapContentHeight()
+            .padding(top = 10.dp),
         contentAlignment = Alignment.Center,
     ) {
-        Image(
-            painter = painterResource(R.drawable.speech_bubble),
-            contentDescription = null,
-            modifier = Modifier.fillMaxSize(),
-            contentScale = ContentScale.FillBounds,
-        )
-        Text(
-            text = "小猫正在想$dotsText",
-            modifier = Modifier
-                .offset(y = (-6).dp)
-                .padding(horizontal = 20.dp),
-            color = androidx.compose.ui.graphics.Color.Black,
-            style = MaterialTheme.typography.bodySmall,
-            fontWeight = FontWeight.SemiBold,
-            textAlign = TextAlign.Center,
-        )
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+        ) {
+            Surface(
+                shape = RoundedCornerShape(22.dp),
+                color = primaryColor,
+                shadowElevation = 3.dp,
+            ) {
+                Text(
+                    text = "小猫正在想$dotsText",
+                    modifier = Modifier.padding(horizontal = 18.dp, vertical = 13.dp),
+                    color = onPrimary,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium,
+                    textAlign = TextAlign.Center,
+                )
+            }
+            Canvas(
+                modifier = Modifier
+                    .size(width = 22.dp, height = 12.dp)
+                    .offset(y = (-1).dp),
+            ) {
+                val tailPath = Path().apply {
+                    moveTo(size.width / 2f, size.height)
+                    lineTo(0f, 0f)
+                    lineTo(size.width, 0f)
+                    close()
+                }
+                drawPath(tailPath, primaryColor)
+            }
+        }
     }
 }
 

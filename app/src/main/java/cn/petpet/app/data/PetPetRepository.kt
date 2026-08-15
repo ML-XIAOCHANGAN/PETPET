@@ -77,6 +77,17 @@ class PetPetRepository(
         return snapshot()
     }
 
+    /** 重置宠物数据（清空名字/品种/好感度），用于"重新领养"。 */
+    fun resetPet(): LocalSnapshot {
+        preferences.edit()
+            .remove(KEY_PET_NAME)
+            .remove(KEY_PET_BREED)
+            .remove(KEY_AFFECTION)
+            .remove(KEY_ADOPTED_AT)
+            .apply()
+        return snapshot()
+    }
+
     fun interact(): Pair<LocalSnapshot, Int> {
         resetDailyProgressIfNeeded()
         val currentCount = preferences.getInt(KEY_INTERACTION_COUNT, 0)

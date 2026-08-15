@@ -71,10 +71,11 @@ class ChatGatewayClient(
                 GatewayResponse(
                     reply = json.optString("reply", ""),
                     degraded = json.optBoolean("degraded", true),
-                    reason = json.optString("reason", null).takeIf { it.isNotEmpty() },
+                    reason = json.optString("reason", "").takeIf { it.isNotEmpty() },
                 )
             } catch (exception: Exception) {
                 // 超时、断网、解析失败等一律视为网关不可用 → 降级
+                android.util.Log.w("PETPET-GW", "网关请求失败: ${exception.message}", exception)
                 null
             } finally {
                 connection?.disconnect()

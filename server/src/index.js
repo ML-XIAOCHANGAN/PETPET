@@ -1,7 +1,20 @@
 // PETPET 对话网关主服务
-// 职责：内容审核 → 限流 → 智谱 GLM 转发 → 降级
+// 职责：内容审核 → 限流 → 智谱 GLM（免费模型 glm-4-flash-250414）转发 → 降级
 // 安全：模型密钥只从环境变量读取，绝不写入源码
 "use strict";
+
+// 轻量 .env 加载（无依赖，避免 node 原生不读 .env）：KEY=VALUE 逐行写入 process.env（不覆盖已有环境变量）
+const fs = require("fs");
+const path = require("path");
+try {
+  const envPath = path.join(__dirname, "..", ".env");
+  if (fs.existsSync(envPath)) {
+    for (const line of fs.readFileSync(envPath, "utf-8").split(/\r?\n/)) {
+      const m = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)\s*$/);
+      if (m && process.env[m[1]] === undefined) process.env[m[1]] = m[2].replace(/^["']|["']$/g, "");
+    }
+  }
+} catch (_) { /* .env 读取失败不阻塞启动 */ }
 
 const express = require("express");
 const { checkContent } = require("./audit");
@@ -10,7 +23,7 @@ const communityStore = require("./communityStore");
 
 const PORT = Number(process.env.PORT || 3002);
 const API_KEY = process.env.ZHIPU_API_KEY || "";
-const MODEL = process.env.MODEL || "glm-4.5-air";
+const MODEL = process.env.MODEL || "glm-4-flash-250414"; // 智谱官方免费文本模型（2026-08 实测：免费档稳定可用；新版 glm-4.7-flash 当前限流过严勿用）
 const MAX_INPUT_LEN = Number(process.env.MAX_INPUT_LEN || 200);
 const ZHIPU_URL = "https://open.bigmodel.cn/api/paas/v4/chat/completions";
 const TIMEOUT_MS = 15_000;

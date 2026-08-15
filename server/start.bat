@@ -1,10 +1,12 @@
 @echo off
-rem PETPET 网关一键启动脚本（PowerShell 双击或命令行运行）
-rem 用法: 先 set ZHIPU_API_KEY=你的Key，再运行本脚本；或直接编辑下面一行
+rem PETPET 网关一键启动脚本（双击或命令行运行）
+rem 首次使用：复制 .env.example 为 .env，填入智谱免费 Key（获取：open.bigmodel.cn 实名后免费创建）
 setlocal
-if "%ZHIPU_API_KEY%"=="" (
-  echo [!] 未设置 ZHIPU_API_KEY，对话将全部降级为本地规则。
-  echo     建议: set ZHIPU_API_KEY=你的智谱Key 后再启动
+if exist "%~dp0.env" (
+  echo [i] 已读取 .env 配置（免费模型 glm-4.7-flash）
+) else (
+  echo [!] 未找到 .env：请复制 .env.example 为 .env 并填入 ZHIPU_API_KEY
+  echo     否则对话将全部降级为本地规则。
 )
 cd /d "%~dp0"
 node src/index.js
