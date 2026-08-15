@@ -111,6 +111,7 @@ fun VoxelButton(
 fun VoxelNavigationBar(
     selected: HomeSection,
     onSelect: (HomeSection) -> Unit,
+    petType: cn.petpet.app.model.PetType? = null,
 ) {
     Surface(
         modifier = Modifier
@@ -167,10 +168,10 @@ fun VoxelNavigationBar(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center,
                     ) {
-                        // 图标统一用 emoji（猫脸/日记/社区）
+                        // 图标统一用 emoji；My Pet 随领养宠物类型变化（猫🐱/狗🐶）
                         Text(
                             text = when (section) {
-                                HomeSection.MY_PET -> "🐱"
+                                HomeSection.MY_PET -> if (petType == cn.petpet.app.model.PetType.DOG) "🐶" else "🐱"
                                 HomeSection.GROWTH -> "📖"
                                 HomeSection.COMMUNITY -> "👥"
                             },

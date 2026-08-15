@@ -24,6 +24,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cn.petpet.app.model.HomeSection
+import cn.petpet.app.model.PetBreeds
 import cn.petpet.app.ui.components.VoxelNavigationBar
 import cn.petpet.app.ui.components.AdoptionDialog
 import cn.petpet.app.ui.screens.CommunityScreen
@@ -60,6 +61,7 @@ fun PetPetApp(
                     VoxelNavigationBar(
                         selected = state.section,
                         onSelect = viewModel::selectSection,
+                        petType = state.pet?.let { PetBreeds.byId(it.breedId)?.type },
                     )
                 }
             },
