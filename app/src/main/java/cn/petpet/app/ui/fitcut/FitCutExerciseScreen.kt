@@ -120,6 +120,7 @@ fun FitCutExerciseScreen(viewModel: FitCutViewModel) {
     logging?.let { exercise ->
         LogWorkoutDialog(
             exercise = exercise,
+            weightKg = state.data.profile?.weightKg ?: 65.0,
             onDismiss = { logging = null },
             onLog = { minutes ->
                 viewModel.logWorkout(exercise.name, exercise.category, minutes)
@@ -176,6 +177,7 @@ private fun ExerciseCard(exercise: Exercise, onLog: () -> Unit) {
 @Composable
 private fun LogWorkoutDialog(
     exercise: Exercise,
+    weightKg: Double,
     onDismiss: () -> Unit,
     onLog: (Int) -> Unit,
 ) {
@@ -207,7 +209,7 @@ private fun LogWorkoutDialog(
                 )
                 val m = minutes.toIntOrNull() ?: 0
                 Text(
-                    if (m > 0) "预计消耗约 ${(m * 0.12 * 65).toInt()} kcal" else "请输入有效时长",
+                    if (m > 0) "预计消耗约 ${(m * 0.12 * weightKg).toInt()} kcal" else "请输入有效时长",
                     fontSize = 13.sp,
                     color = FitCutGreen,
                     fontWeight = FontWeight.Bold,
