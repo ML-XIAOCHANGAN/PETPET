@@ -39,8 +39,9 @@ import kotlin.math.sin
 /**
  * 展示宠物头像（按品种）。
  *
- * 程序只对图片执行缩放、位移、旋转和淡入淡出。点击后黑猫会短暂切换表情，
- * 其他品种只做互动动效（它们暂无表情包）。
+ * 程序只对图片执行缩放、位移、旋转和淡入淡出。点击后宠物会短暂切换表情
+ * （18 品种均有表情包，2026-08 全量更新），思考时切换 thinking 表情，
+ * 对话回复后可指定情绪表情（expression）。
  */
 @Composable
 fun InteractiveBlackCatAvatar(
@@ -48,6 +49,7 @@ fun InteractiveBlackCatAvatar(
     modifier: Modifier = Modifier,
     thinking: Boolean = false,
     breedId: String = "black_cat",
+    expression: String? = null,
 ) {
     val mainRes = remember(breedId) {
         PetBreeds.byId(breedId)?.avatarRes ?: R.drawable.cat_main
@@ -75,21 +77,12 @@ fun InteractiveBlackCatAvatar(
     val scope = rememberCoroutineScope()
     val interactionSource = remember { MutableInteractionSource() }
     val floatingPixels = with(LocalDensity.current) { floatingY.dp.toPx() }
-    // 黑猫有专属表情包；其他品种只复用主头像做互动动效
+    // 18 品种表情包：点击随机表情列表 + 思考表情（素材 2026-08 全量更新）
     val expressionImages = remember(breedId) {
-        if (breedId == "black_cat") {
-            listOf(
-                R.drawable.cat_wink,
-                R.drawable.cat_shy,
-                R.drawable.cat_expression_happy,
-                R.drawable.cat_expression_curious,
-                R.drawable.cat_expression_smile,
-                R.drawable.cat_expression_squint,
-            )
-        } else {
-            listOf(mainRes)
-        }
+        val clickList = PetExpressionLibrary.clickExpressionsFor(breedId)
+        if (clickList.isNotEmpty()) clickList else listOf(mainRes)
     }
+    val thinkingRes = remember(breedId) { PetExpressionLibrary.thinkingFor(breedId) }
     @DrawableRes var currentImage by remember { mutableIntStateOf(mainRes) }
     var interactionSequence by remember { mutableIntStateOf(0) }
     val progress = interactionProgress.value
@@ -101,12 +94,14 @@ fun InteractiveBlackCatAvatar(
         currentImage = mainRes
     }
 
-    // 思考中：黑猫显示好奇表情，其他品种保持主头像（加轻微摇摆）
-    LaunchedEffect(thinking, mainRes) {
-        if (thinking && breedId == "black_cat") {
-            currentImage = R.drawable.cat_expression_curious
-        } else if (currentImage == R.drawable.cat_expression_curious || currentImage != mainRes) {
-            currentImage = mainRes
+    // 表情优先级：思考 > 情绪表达 > 主头像
+    LaunchedEffect(thinking, thinkingRes, expression, breedId) {
+        when {
+            thinking && thinkingRes != null -> currentImage = thinkingRes
+            !thinking && !expression.isNullOrBlank() -> {
+                PetExpressionLibrary.expressionRes(breedId, expression)?.let { currentImage = it }
+            }
+            currentImage != mainRes -> currentImage = mainRes
         }
     }
 

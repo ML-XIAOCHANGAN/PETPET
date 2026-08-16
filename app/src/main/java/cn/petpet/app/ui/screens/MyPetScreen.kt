@@ -173,6 +173,7 @@ fun MyPetScreen(
                     greetingRequest += 1
                 },
                 thinking = state.petTyping,
+                expression = state.petExpression,
                 breedId = pet.breedId,
                 modifier = Modifier
                     .align(Alignment.Center)

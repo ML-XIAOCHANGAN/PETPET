@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.time.format.DateTimeFormatter
 
@@ -256,10 +257,39 @@ class PetPetViewModel(application: Application) : AndroidViewModel(application) 
                 current.copy(
                     messages = current.messages.map { if (it.id == thinkingId) replyMessage else it },
                     petTyping = false,
+                    // 按回复内容分析情绪，宠物显示对应表情（短暂展示后由协程清除）
+                    petExpression = analyzeReplyEmotion(replyText),
                     // 触发对话弹窗（5 秒后由 UI 自动隐藏）
                     chatBubble = replyMessage.id to replyText,
                 )
             }
+            // 情绪表情展示 2.8 秒后恢复主头像
+            delay(2800)
+            _state.update { current ->
+                if (current.petExpression != null) current.copy(petExpression = null) else current
+            }
+        }
+    }
+
+    /**
+     * 根据模型回复内容分析宠物情绪表情。
+     * 规则简单可扩展：命中关键词返回对应情绪，否则返回 null（主头像）。
+     */
+    private fun analyzeReplyEmotion(reply: String): String? {
+        val text = reply.trim()
+        return when {
+            // 开心/积极
+            text.contains("开心") || text.contains("高兴") || text.contains("哈哈") ||
+                text.contains("太好了") || text.contains("真棒") || text.contains("喜欢") ||
+                text.contains("加油") || text.contains("真好") -> "happy"
+            // 惊喜
+            text.contains("哇") || text.contains("真的吗") || text.contains("居然") ||
+                text.contains("没想到") -> "surprised"
+            // 难过/安慰
+            text.contains("难过") || text.contains("伤心") || text.contains("别担心") ||
+                text.contains("抱抱") || text.contains("没事的") || text.contains("心疼") -> "sad"
+            // 默认：不额外切换（保持主头像）
+            else -> null
         }
     }
 
