@@ -55,6 +55,7 @@ fun GrowthScreen(
     diaryEntries: List<DiaryEntry>,
     onAddDiary: (String, String) -> Unit,
     onOpenFitCut: () -> Unit = {},
+    onOpenPetHealth: () -> Unit = {},
 ) {
     var showComposer by rememberSaveable { mutableStateOf(false) }
     val isDog = PetBreeds.byId(pet.breedId)?.type == PetType.DOG
@@ -82,6 +83,10 @@ fun GrowthScreen(
 
         item {
             FitCutEntryCard(onClick = onOpenFitCut)
+        }
+
+        item {
+            PetHealthEntryCard(onClick = onOpenPetHealth)
         }
 
         item {
@@ -335,6 +340,45 @@ private fun FitCutEntryCard(onClick: () -> Unit) {
                 )
             }
             Text("›", fontSize = 22.sp, color = Color(0xFF15803D))
+        }
+    }
+}
+
+/** 成长页 Petpet 健康助手入口卡片。 */
+@Composable
+private fun PetHealthEntryCard(onClick: () -> Unit) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(22.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = Color(0xFFE0F2FE),
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("🐾", fontSize = 26.sp)
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    "Petpet 健康助手",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF0369A1),
+                )
+                Text(
+                    "健康档案 · 养护计划 · 日常记录 · 健康预警",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color(0xFF075985),
+                )
+            }
+            Text("›", fontSize = 22.sp, color = Color(0xFF0369A1))
         }
     }
 }

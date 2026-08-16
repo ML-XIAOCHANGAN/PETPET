@@ -32,6 +32,8 @@ import cn.petpet.app.ui.components.VoxelNavigationBar
 import cn.petpet.app.ui.components.AdoptionDialog
 import cn.petpet.app.ui.fitcut.FitCutScreen
 import cn.petpet.app.ui.fitcut.FitCutViewModel
+import cn.petpet.app.ui.pethealth.PetHealthScreen
+import cn.petpet.app.ui.pethealth.PetHealthViewModel
 import cn.petpet.app.ui.screens.CommunityScreen
 import cn.petpet.app.ui.screens.GrowthScreen
 import cn.petpet.app.ui.screens.MyPetScreen
@@ -44,7 +46,9 @@ fun PetPetApp(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     var showFitCut by remember { mutableStateOf(false) }
+    var showPetHealth by remember { mutableStateOf(false) }
     val fitCutViewModel: FitCutViewModel = viewModel()
+    val petHealthViewModel: PetHealthViewModel = viewModel()
 
     PetPetTheme(darkTheme = state.darkTheme) {
         val snackbarHostState = remember { SnackbarHostState() }
@@ -64,6 +68,14 @@ fun PetPetApp(
             FitCutScreen(
                 viewModel = fitCutViewModel,
                 onClose = { showFitCut = false },
+            )
+            return@PetPetTheme
+        }
+
+        if (showPetHealth) {
+            PetHealthScreen(
+                viewModel = petHealthViewModel,
+                onClose = { showPetHealth = false },
             )
             return@PetPetTheme
         }
@@ -124,6 +136,7 @@ fun PetPetApp(
                                 diaryEntries = state.diaryEntries,
                                 onAddDiary = viewModel::addDiaryEntry,
                                 onOpenFitCut = { showFitCut = true },
+                                onOpenPetHealth = { showPetHealth = true },
                             )
                             HomeSection.COMMUNITY -> CommunityScreen(
                                 pet = requireNotNull(state.pet),
