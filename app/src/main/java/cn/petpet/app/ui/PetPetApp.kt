@@ -19,14 +19,19 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import cn.petpet.app.model.HomeSection
 import cn.petpet.app.model.PetBreeds
 import cn.petpet.app.ui.components.VoxelNavigationBar
 import cn.petpet.app.ui.components.AdoptionDialog
+import cn.petpet.app.ui.fitcut.FitCutScreen
+import cn.petpet.app.ui.fitcut.FitCutViewModel
 import cn.petpet.app.ui.screens.CommunityScreen
 import cn.petpet.app.ui.screens.GrowthScreen
 import cn.petpet.app.ui.screens.MyPetScreen
@@ -38,6 +43,8 @@ fun PetPetApp(
     chatFocusRequest: Long = 0L,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    var showFitCut by remember { mutableStateOf(false) }
+    val fitCutViewModel: FitCutViewModel = viewModel()
 
     PetPetTheme(darkTheme = state.darkTheme) {
         val snackbarHostState = remember { SnackbarHostState() }
@@ -51,6 +58,14 @@ fun PetPetApp(
 
         LaunchedEffect(chatFocusRequest) {
             if (chatFocusRequest > 0L) viewModel.selectSection(HomeSection.MY_PET)
+        }
+
+        if (showFitCut) {
+            FitCutScreen(
+                viewModel = fitCutViewModel,
+                onClose = { showFitCut = false },
+            )
+            return@PetPetTheme
         }
 
         Scaffold(
@@ -108,6 +123,7 @@ fun PetPetApp(
                                 pet = requireNotNull(state.pet),
                                 diaryEntries = state.diaryEntries,
                                 onAddDiary = viewModel::addDiaryEntry,
+                                onOpenFitCut = { showFitCut = true },
                             )
                             HomeSection.COMMUNITY -> CommunityScreen(
                                 pet = requireNotNull(state.pet),
