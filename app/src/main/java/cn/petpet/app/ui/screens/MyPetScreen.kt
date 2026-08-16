@@ -57,7 +57,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import cn.petpet.app.R
 import cn.petpet.app.domain.AffectionRules
+import cn.petpet.app.model.PetBreeds
 import cn.petpet.app.model.PetPetUiState
+import cn.petpet.app.model.PetType
 import cn.petpet.app.model.ChatProvider
 import cn.petpet.app.overlay.FloatingPetImageButton
 import cn.petpet.app.ui.components.InteractiveBlackCatAvatar
@@ -372,6 +374,7 @@ private fun CompanionSummary(
 ) {
     var expanded by remember { mutableStateOf(false) }
     val pet = requireNotNull(state.pet)
+    val isDog = PetBreeds.byId(pet.breedId)?.type == PetType.DOG
     val interactionSource = remember { MutableInteractionSource() }
     val accent = MaterialTheme.colorScheme.primary
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
@@ -424,10 +427,19 @@ private fun CompanionSummary(
                         color = muted,
                     )
                 }
-                // 互动进度：自绘爪印 + 数字
+                // 互动进度：爪印（猫自绘 / 狗图片）+ 数字
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Canvas(Modifier.size(18.dp)) {
-                        drawPawIcon(muted, size.minDimension)
+                    if (isDog) {
+                        Image(
+                            painter = painterResource(R.drawable.dog_paw),
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp),
+                            contentScale = ContentScale.Fit,
+                        )
+                    } else {
+                        Canvas(Modifier.size(18.dp)) {
+                            drawPawIcon(muted, size.minDimension)
+                        }
                     }
                     Spacer(Modifier.width(6.dp))
                     Text(
