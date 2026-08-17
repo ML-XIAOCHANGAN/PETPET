@@ -52,8 +52,8 @@ fun FitCutScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
 
     if (state.data.profile == null || state.onboardingStep < 4) {
-        // 未建档（或正在编辑档案）→ 引导流程
-        FitCutOnboarding(viewModel)
+        // 未建档（或正在编辑档案）→ 引导流程（带退出按钮，避免卡在引导页）
+        FitCutOnboarding(viewModel = viewModel, onClose = onClose)
         return
     }
 

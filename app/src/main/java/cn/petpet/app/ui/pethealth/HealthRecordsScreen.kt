@@ -15,6 +15,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -28,6 +29,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -372,22 +374,27 @@ private fun AddPoopDialog(viewModel: PetHealthViewModel, onDismiss: () -> Unit) 
                 )
                 if (type == "排便") {
                     Text("布里斯托分级（1 便秘 → 7 腹泻）", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    ) {
-                        (1..7).forEach { b ->
-                            Surface(
-                                onClick = { bristol = b },
-                                shape = RoundedCornerShape(8.dp),
-                                color = if (bristol == b) PetHealthBlue else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
-                                contentColor = if (bristol == b) Color_White else MaterialTheme.colorScheme.onSurfaceVariant,
-                            ) {
-                                Text(
-                                    "$b",
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                                    fontSize = 12.sp,
-                                )
+                    // 1-7 分两行展示，避免 6/7 溢出屏幕
+                    (1..7).toList().chunked(4).forEach { row ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            row.forEach { b ->
+                                Surface(
+                                    onClick = { bristol = b },
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = if (bristol == b) PetHealthBlue else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                                    contentColor = if (bristol == b) Color_White else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.weight(1f),
+                                ) {
+                                    Text(
+                                        "$b",
+                                        modifier = Modifier.padding(vertical = 6.dp),
+                                        fontSize = 12.sp,
+                                        textAlign = TextAlign.Center,
+                                    )
+                                }
                             }
                         }
                     }
@@ -402,11 +409,11 @@ private fun AddPoopDialog(viewModel: PetHealthViewModel, onDismiss: () -> Unit) 
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("带血", fontSize = 13.sp)
                     Spacer(Modifier.width(6.dp))
-                    Text(if (hasBlood) "✅" else "⬜", modifier = Modifier.clickable { hasBlood = !hasBlood })
-                    Spacer(Modifier.width(20.dp))
+                    Checkbox(checked = hasBlood, onCheckedChange = { hasBlood = it })
+                    Spacer(Modifier.width(16.dp))
                     Text("异常标注", fontSize = 13.sp)
                     Spacer(Modifier.width(6.dp))
-                    Text(if (abnormal) "✅" else "⬜", modifier = Modifier.clickable { abnormal = !abnormal })
+                    Checkbox(checked = abnormal, onCheckedChange = { abnormal = it })
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     VoxelButton(text = "取消", onClick = onDismiss, compact = true, style = VoxelButtonStyle.NEUTRAL)

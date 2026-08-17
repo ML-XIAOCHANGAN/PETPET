@@ -91,15 +91,13 @@ fun PetHealthScreen(
             VoxelButton(text = "关闭", onClick = onClose, compact = true, style = VoxelButtonStyle.NEUTRAL)
         }
 
-        // 宠物切换栏
-        if (state.data.pets.isNotEmpty()) {
-            PetSwitcher(
-                pets = state.data.pets,
-                currentId = state.currentPetId,
-                onSelect = viewModel::selectPet,
-                onAdd = viewModel::showAddPet,
-            )
-        }
+        // 宠物切换栏（空态也显示，保留「添加」入口）
+        PetSwitcher(
+            pets = state.data.pets,
+            currentId = state.currentPetId,
+            onSelect = viewModel::selectPet,
+            onAdd = viewModel::showAddPet,
+        )
 
         // 免责声明横幅
         Text(
@@ -222,9 +220,10 @@ private fun PetSwitcher(
     }
 }
 
-/** 添加宠物弹窗（猫狗差异化字段）。 */
+/** 添加宠物弹窗：先选择来源（当前电子宠物 / 自定义），自定义才展开表单。 */
 @Composable
 private fun AddPetDialog(viewModel: PetHealthViewModel) {
+    var mode by remember { mutableStateOf(0) } // 0=选择来源, 1=自定义表单
     var kind by remember { mutableStateOf(PetKind.CAT) }
     var name by remember { mutableStateOf("") }
     var gender by remember { mutableStateOf(PetGender.MALE) }
@@ -242,14 +241,73 @@ private fun AddPetDialog(viewModel: PetHealthViewModel) {
             shape = RoundedCornerShape(20.dp),
             color = MaterialTheme.colorScheme.surface,
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState())
-                    .padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                Text("添加宠物健康档案", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            if (mode == 0) {
+                // ── 选择来源 ──
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Text("添加宠物健康档案", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Text("选择要添加的宠物", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+
+                    // 添加当前电子宠物（宿主已领养）
+                    Surface(
+                        onClick = viewModel::addHostPet,
+                        shape = RoundedCornerShape(16.dp),
+                        color = PetHealthBlue.copy(alpha = 0.10f),
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text("🐱", fontSize = 26.sp)
+                            Spacer(Modifier.width(12.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text("添加当前电子宠物", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = PetHealthBlueDark)
+                                Text("把我在 My Pet 领养的宠物加入健康管理", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            Text("›", fontSize = 20.sp, color = PetHealthBlueDark)
+                        }
+                    }
+
+                    // 自定义添加
+                    Surface(
+                        onClick = { mode = 1 },
+                        shape = RoundedCornerShape(16.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text("🐾", fontSize = 26.sp)
+                            Spacer(Modifier.width(12.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text("自定义添加宠物", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                Text("手动填写品种、生日、体重等信息", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            Text("›", fontSize = 20.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+
+                    VoxelButton(text = "取消", onClick = viewModel::hideAddPet, compact = true, style = VoxelButtonStyle.NEUTRAL)
+                }
+            } else {
+                // ── 自定义表单 ──
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState())
+                        .padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Text("添加宠物健康档案", fontWeight = FontWeight.Bold, fontSize = 16.sp)
 
                 // 类型选择
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -333,6 +391,7 @@ private fun AddPetDialog(viewModel: PetHealthViewModel) {
                 )
 
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    VoxelButton(text = "上一步", onClick = { mode = 0 }, compact = true, style = VoxelButtonStyle.NEUTRAL)
                     VoxelButton(text = "取消", onClick = viewModel::hideAddPet, compact = true, style = VoxelButtonStyle.NEUTRAL)
                     VoxelButton(
                         text = "保存档案",
@@ -344,7 +403,8 @@ private fun AddPetDialog(viewModel: PetHealthViewModel) {
                         enabled = name.isNotBlank() && birthDate.isNotBlank() && (weight.toDoubleOrNull() ?: 0.0) > 0,
                     )
                 }
-            }
+                } // ── 自定义表单 Column 结束 ──
+            } // else 分支结束
         }
     }
 }

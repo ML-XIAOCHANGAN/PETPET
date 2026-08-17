@@ -72,7 +72,10 @@ class PetHealthRepository(context: Context) {
     suspend fun addPet(pet: HealthPetProfile) {
         dataStore.edit { prefs ->
             val current = PetHealthJson.decodePets(prefs[KEY_PETS])
-            prefs[KEY_PETS] = PetHealthJson.encodePets(current + pet)
+            // 按 id 去重（防止重复添加同一宠物）
+            prefs[KEY_PETS] = PetHealthJson.encodePets(
+                if (current.any { it.id == pet.id }) current else current + pet,
+            )
         }
     }
 

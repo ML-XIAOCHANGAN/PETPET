@@ -43,7 +43,7 @@ val FitCutGreenDark = Color(0xFF16A34A)
 val FitCutOrange = Color(0xFFF97316)
 
 @Composable
-fun FitCutOnboarding(viewModel: FitCutViewModel) {
+fun FitCutOnboarding(viewModel: FitCutViewModel, onClose: () -> Unit = {}) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     Column(
         modifier = Modifier
@@ -53,7 +53,20 @@ fun FitCutOnboarding(viewModel: FitCutViewModel) {
             .padding(horizontal = 24.dp, vertical = 16.dp),
     ) {
         Spacer(Modifier.height(16.dp))
-        Text("FitCut 减脂助手", fontSize = 26.sp, fontWeight = FontWeight.Black, color = FitCutGreen)
+        // 标题行 + 退出按钮
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                "FitCut 减脂助手",
+                fontSize = 26.sp,
+                fontWeight = FontWeight.Black,
+                color = FitCutGreen,
+                modifier = Modifier.weight(1f),
+            )
+            VoxelButton(text = "退出", onClick = onClose, compact = true, style = VoxelButtonStyle.NEUTRAL)
+        }
         Text(
             "科学计算你的减脂计划 · 第 ${state.onboardingStep + 1} 步 / 共 3 步",
             fontSize = 13.sp,

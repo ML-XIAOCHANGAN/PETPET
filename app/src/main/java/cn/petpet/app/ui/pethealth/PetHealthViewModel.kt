@@ -63,40 +63,8 @@ class PetHealthViewModel(application: Application) : AndroidViewModel(applicatio
                 }
             }
         }
-        // 首启：若宿主已有领养宠物且健康模块无档案 → 自动带入
-        viewModelScope.launch {
-            val snapshot = hostRepository.snapshot()
-            val pet = snapshot.pet
-            if (pet != null && _state.value.data.pets.isEmpty()) {
-                val kind = if (PetBreedsHelper.typeOf(pet.breedId) == PetType.DOG) PetKind.DOG else PetKind.CAT
-                // 品种：健康库用对应类型的默认品种 id（保证体型评估/计划可用），展示名保留宿主品种名
-                val healthBreed = if (kind == PetKind.DOG) {
-                    PetBreedLibrary.byId("dog_tianyuan") ?: PetBreedLibrary.byKind(PetKind.DOG).first()
-                } else {
-                    PetBreedLibrary.byId("cat_shorthair") ?: PetBreedLibrary.byKind(PetKind.CAT).first()
-                }
-                // 出生日期：以领养日期往前推 1 岁作为默认（宿主宠物实际年龄未知，默认按成宠处理）
-                val birthDate = runCatching {
-                    java.time.LocalDate.parse(pet.adoptedAt)
-                        .minusYears(1)
-                        .toString()
-                }.getOrDefault(java.time.LocalDate.now().minusYears(1).toString())
-                val hostPet = HealthPetProfile(
-                    id = "host_${pet.breedId}",
-                    kind = kind,
-                    name = pet.name,
-                    gender = PetGender.MALE,
-                    neutered = false,
-                    birthDate = birthDate,
-                    breedId = healthBreed.id,
-                    breedName = PetBreedsHelper.nameOf(pet.breedId),
-                    weightKg = 4.0,
-                    isHostPet = true,
-                    createdAt = repository.now(),
-                )
-                repository.addPet(hostPet)
-            }
-        }
+        // 不再自动带入宿主宠物（2026-08 用户反馈 BUG01：改由用户主动选择添加，
+        // 入口在宠物切换栏的「＋添加」→「添加当前电子宠物 / 自定义添加宠物」）
     }
 
     // ---- 当前宠物 ----
@@ -129,6 +97,55 @@ class PetHealthViewModel(application: Application) : AndroidViewModel(applicatio
     fun showAddPet() = _state.update { it.copy(showAddPet = true) }
     fun hideAddPet() = _state.update { it.copy(showAddPet = false) }
 
+    /**
+     * 添加当前电子宠物（宿主已领养的宠物）。
+     * 防止重复：若健康档案里已有同品种的宿主宠物则提示不重复添加。
+     */
+    fun addHostPet() {
+        val snapshot = hostRepository.snapshot()
+        val pet = snapshot.pet ?: run {
+            showNotice("还没有领养电子宠物，请先回 My Pet 领养")
+            return
+        }
+        val kind = if (PetBreedsHelper.typeOf(pet.breedId) == PetType.DOG) PetKind.DOG else PetKind.CAT
+        // 防重复：宿主宠物档案 id 固定为 host_<breedId>，已存在即不重复添加
+        val hostId = "host_${pet.breedId}"
+        if (_state.value.data.pets.any { it.id == hostId }) {
+            showNotice("已添加过当前电子宠物，无需重复添加")
+            return
+        }
+        val healthBreed = if (kind == PetKind.DOG) {
+            PetBreedLibrary.byId("dog_tianyuan") ?: PetBreedLibrary.byKind(PetKind.DOG).first()
+        } else {
+            PetBreedLibrary.byId("cat_shorthair") ?: PetBreedLibrary.byKind(PetKind.CAT).first()
+        }
+        val birthDate = runCatching {
+            java.time.LocalDate.parse(pet.adoptedAt)
+                .minusYears(1)
+                .toString()
+        }.getOrDefault(java.time.LocalDate.now().minusYears(1).toString())
+        viewModelScope.launch {
+            repository.addPet(
+                HealthPetProfile(
+                    id = hostId,
+                    kind = kind,
+                    name = pet.name,
+                    gender = PetGender.MALE,
+                    neutered = false,
+                    birthDate = birthDate,
+                    breedId = healthBreed.id,
+                    breedName = PetBreedsHelper.nameOf(pet.breedId),
+                    weightKg = 4.0,
+                    isHostPet = true,
+                    createdAt = repository.now(),
+                ),
+            )
+            // 立即选中新宠物并关闭弹窗（不等下次 dataFlow collect）
+            _state.update { it.copy(showAddPet = false, currentPetId = hostId) }
+            showNotice("已添加电子宠物 ${pet.name} 的健康档案")
+        }
+    }
+
     fun addPet(
         kind: PetKind, name: String, gender: PetGender, neutered: Boolean,
         birthDate: String, breedId: String, weightKg: Double,
@@ -140,17 +157,18 @@ class PetHealthViewModel(application: Application) : AndroidViewModel(applicatio
         }
         val breed = PetBreedLibrary.byId(breedId)
             ?: PetBreedLibrary.byKind(kind).first()
+        val newPetId = "pet_${System.currentTimeMillis()}"
         viewModelScope.launch {
             repository.addPet(
                 HealthPetProfile(
-                    id = "pet_${System.currentTimeMillis()}",
+                    id = newPetId,
                     kind = kind, name = name.trim(), gender = gender, neutered = neutered,
                     birthDate = birthDate, breedId = breed.id, breedName = breed.name,
                     weightKg = weightKg, foodBans = foodBans,
                     isHostPet = false, createdAt = repository.now(),
                 ),
             )
-            _state.update { it.copy(showAddPet = false) }
+            _state.update { it.copy(showAddPet = false, currentPetId = newPetId) }
             showNotice("已添加 ${name.trim()} 的健康档案")
         }
     }
