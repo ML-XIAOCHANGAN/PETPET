@@ -78,6 +78,14 @@ data class WeightRecord(
     val createdAt: String,
 )
 
+/** 用户自建待办事项（今日待办，同健康助手体验）。 */
+data class FitCutTodo(
+    val id: Long,
+    val text: String,
+    val date: String,                // yyyy-MM-dd（待办归属日）
+    val done: Boolean = false,
+)
+
 /** 成就（计算型，解锁状态由数据实时推导）。 */
 data class Achievement(
     val id: String,

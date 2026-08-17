@@ -29,6 +29,7 @@ data class FitCutLocalData(
     val mealRecords: List<MealRecord>,
     val workoutRecords: List<WorkoutRecord>,
     val weightRecords: List<WeightRecord>,
+    val todos: List<FitCutTodo> = emptyList(),
 )
 
 /**
@@ -57,6 +58,7 @@ class FitCutRepository(context: Context) {
                 mealRecords = FitCutJson.decodeMeals(prefs[KEY_MEAL_RECORDS]),
                 workoutRecords = FitCutJson.decodeWorkouts(prefs[KEY_WORKOUT_RECORDS]),
                 weightRecords = FitCutJson.decodeWeights(prefs[KEY_WEIGHT_RECORDS]),
+                todos = FitCutJson.decodeTodos(prefs[KEY_TODOS]),
             )
         }
 
@@ -125,12 +127,55 @@ class FitCutRepository(context: Context) {
     /** 当前时间戳（yyyy-MM-dd HH:mm）。 */
     fun now(): String = java.time.LocalDateTime.now().format(timeFormatter)
 
+    // ---- 待办事项（用户自建） ----
+
+    suspend fun addTodo(text: String, date: String = today()) {
+        if (text.isBlank()) return
+        dataStore.edit { prefs ->
+            val current = FitCutJson.decodeTodos(prefs[KEY_TODOS])
+            prefs[KEY_TODOS] = FitCutJson.encodeTodos(
+                current + FitCutTodo(
+                    id = System.currentTimeMillis(),
+                    text = text.trim(),
+                    date = date,
+                ),
+            )
+        }
+    }
+
+    suspend fun updateTodo(todoId: Long, text: String, date: String) {
+        if (text.isBlank()) return
+        dataStore.edit { prefs ->
+            val current = FitCutJson.decodeTodos(prefs[KEY_TODOS])
+            prefs[KEY_TODOS] = FitCutJson.encodeTodos(
+                current.map { if (it.id == todoId) it.copy(text = text.trim(), date = date) else it },
+            )
+        }
+    }
+
+    suspend fun toggleTodo(todoId: Long) {
+        dataStore.edit { prefs ->
+            val current = FitCutJson.decodeTodos(prefs[KEY_TODOS])
+            prefs[KEY_TODOS] = FitCutJson.encodeTodos(
+                current.map { if (it.id == todoId) it.copy(done = !it.done) else it },
+            )
+        }
+    }
+
+    suspend fun removeTodo(todoId: Long) {
+        dataStore.edit { prefs ->
+            val current = FitCutJson.decodeTodos(prefs[KEY_TODOS])
+            prefs[KEY_TODOS] = FitCutJson.encodeTodos(current.filterNot { it.id == todoId })
+        }
+    }
+
     private companion object {
         val KEY_PROFILE = stringPreferencesKey("fitcut_profile")
         val KEY_CUSTOM_FOODS = stringPreferencesKey("fitcut_custom_foods")
         val KEY_MEAL_RECORDS = stringPreferencesKey("fitcut_meal_records")
         val KEY_WORKOUT_RECORDS = stringPreferencesKey("fitcut_workout_records")
         val KEY_WEIGHT_RECORDS = stringPreferencesKey("fitcut_weight_records")
+        val KEY_TODOS = stringPreferencesKey("fitcut_todos")
     }
 }
 
@@ -320,6 +365,31 @@ internal object FitCutJson {
                             createdAt = o.getString("createdAt"),
                         ),
                     )
+                }
+            }
+        }.getOrDefault(emptyList())
+    }
+
+    fun encodeTodos(list: List<FitCutTodo>): String {
+        val arr = JSONArray()
+        list.forEach { t ->
+            arr.put(JSONObject()
+                .put("id", t.id).put("text", t.text)
+                .put("date", t.date).put("done", t.done))
+        }
+        return arr.toString()
+    }
+
+    fun decodeTodos(raw: String?): List<FitCutTodo> {
+        if (raw.isNullOrBlank()) return emptyList()
+        return runCatching {
+            val arr = JSONArray(raw)
+            buildList {
+                repeat(arr.length()) { i ->
+                    val o = arr.getJSONObject(i)
+                    add(FitCutTodo(
+                        id = o.getLong("id"), text = o.getString("text"),
+                        date = o.getString("date"), done = o.optBoolean("done", false)))
                 }
             }
         }.getOrDefault(emptyList())

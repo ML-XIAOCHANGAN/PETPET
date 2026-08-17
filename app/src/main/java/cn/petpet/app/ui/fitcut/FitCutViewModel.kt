@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import cn.petpet.app.data.fitcut.Achievement
 import cn.petpet.app.data.fitcut.ActivityLevel
 import cn.petpet.app.data.fitcut.FitCutCalculator
+import cn.petpet.app.data.fitcut.FitCutTodo
 import cn.petpet.app.data.fitcut.FitCutLocalData
 import cn.petpet.app.data.fitcut.FitCutPlan
 import cn.petpet.app.data.fitcut.FitCutRepository
@@ -296,4 +297,26 @@ class FitCutViewModel(application: Application) : AndroidViewModel(application) 
 
     /** 消费一次性提示。 */
     fun consumeNotice() = _state.update { it.copy(notice = null) }
+
+    // ---- 今日待办（用户自建） ----
+
+    val todos: List<FitCutTodo> get() = _state.value.data.todos
+
+    fun addTodo(text: String, date: String = repository.today()) {
+        if (text.isBlank()) return
+        viewModelScope.launch { repository.addTodo(text, date) }
+    }
+
+    fun updateTodo(todoId: Long, text: String, date: String) {
+        if (text.isBlank()) return
+        viewModelScope.launch { repository.updateTodo(todoId, text, date) }
+    }
+
+    fun toggleTodo(todoId: Long) {
+        viewModelScope.launch { repository.toggleTodo(todoId) }
+    }
+
+    fun removeTodo(todoId: Long) {
+        viewModelScope.launch { repository.removeTodo(todoId) }
+    }
 }
