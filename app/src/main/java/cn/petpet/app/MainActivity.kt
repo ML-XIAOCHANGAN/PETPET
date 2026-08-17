@@ -37,6 +37,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
+        getSharedPreferences(FOREGROUND_PREFERENCES, MODE_PRIVATE)
+            .edit().putBoolean(KEY_FOREGROUND, true).apply()
         if (
             FloatingPetController.isAutoStartEnabled(this) &&
             FloatingPetController.hasRequiredPermissions(this)
@@ -48,6 +50,12 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onStop() {
+        super.onStop()
+        getSharedPreferences(FOREGROUND_PREFERENCES, MODE_PRIVATE)
+            .edit().putBoolean(KEY_FOREGROUND, false).apply()
+    }
+
     private fun handleLaunchIntent(intent: Intent?) {
         if (intent?.getBooleanExtra(EXTRA_OPEN_CHAT, false) == true) {
             chatFocusRequest += 1L
@@ -56,5 +64,7 @@ class MainActivity : ComponentActivity() {
 
     companion object {
         const val EXTRA_OPEN_CHAT = "cn.petpet.app.extra.OPEN_CHAT"
+        private const val FOREGROUND_PREFERENCES = "foreground_state"
+        private const val KEY_FOREGROUND = "foreground"
     }
 }
