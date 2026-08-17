@@ -204,7 +204,7 @@ fun MyPetScreen(
                 ),
             ) {
                 when {
-                    state.petTyping -> TypingBubble()
+                    state.petTyping -> TypingBubble(isDog = PetBreeds.byId(pet.breedId)?.type == PetType.DOG)
                     bubbleVisible && bubble != null -> GreetingBubble(text = bubble.second)
                     greetingVisible -> GreetingBubble(text = state.greeting)
                     else -> GreetingBubble(text = state.greeting)
@@ -315,7 +315,7 @@ private fun GreetingBubble(text: String) {
 }
 
 @Composable
-private fun TypingBubble() {
+private fun TypingBubble(isDog: Boolean = false) {
     var dots by remember { mutableIntStateOf(0) }
     LaunchedEffect(Unit) {
         while (true) {
@@ -343,7 +343,7 @@ private fun TypingBubble() {
                 shadowElevation = 3.dp,
             ) {
                 Text(
-                    text = "小猫正在想$dotsText",
+                    text = "${if (isDog) "小狗" else "小猫"}正在想$dotsText",
                     modifier = Modifier.padding(horizontal = 18.dp, vertical = 13.dp),
                     color = onPrimary,
                     style = MaterialTheme.typography.bodyMedium,

@@ -39,6 +39,8 @@ class ChatGatewayClient(
         apiKey: String,
         message: String,
         history: List<Pair<String, String>>,
+        petName: String = "小猫",
+        isDog: Boolean = false,
     ): GatewayResponse? {
         return withContext(Dispatchers.IO) {
             var connection: HttpURLConnection? = null
@@ -57,13 +59,15 @@ class ChatGatewayClient(
                 }
 
                 val messages = JSONArray()
+                val kindText = if (isDog) "小狗" else "小猫"
+                val sound = if (isDog) "汪" else "喵"
                 messages.put(
                     JSONObject().apply {
                         put("role", "system")
                         put(
                             "content",
-                            "你是 PETPET 里的一只小黑猫。你温柔、简短、有点俏皮，像真正的宠物一样陪伴用户。" +
-                                "回复控制在 60 字以内，多用'喵'，不要提及你是 AI 或模型。用户可能心情低落，先回应情绪再回应内容。",
+                            "你是 PETPET 里的一只$kindText，叫$petName。你温柔、简短、有点俏皮，像真正的宠物一样陪伴用户。" +
+                                "回复控制在 60 字以内，多用'$sound'，不要提及你是 AI 或模型。用户可能心情低落，先回应情绪再回应内容。",
                         )
                     },
                 )
@@ -150,6 +154,8 @@ class ChatGatewayClient(
         history: List<Pair<String, String>>,
         provider: String = "zhipu",
         apiKey: String = "",
+        petName: String = "小猫",
+        isDog: Boolean = false,
     ): GatewayResponse? {
         return withContext(Dispatchers.IO) {
             var connection: HttpURLConnection? = null
@@ -159,6 +165,8 @@ class ChatGatewayClient(
                     put("message", message)
                     put("provider", provider)
                     put("apiKey", apiKey)
+                    put("petName", petName)
+                    put("isDog", isDog)
                     put("history", JSONArray().apply {
                         history.takeLast(6).forEach { (role, text) ->
                             put(JSONObject().apply {

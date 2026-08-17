@@ -14,6 +14,7 @@ import cn.petpet.app.model.CommunityPost
 import cn.petpet.app.model.HomeSection
 import cn.petpet.app.model.PetBreeds
 import cn.petpet.app.model.PetPetUiState
+import cn.petpet.app.model.PetType
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -30,13 +31,24 @@ class PetPetViewModel(application: Application) : AndroidViewModel(application) 
     private val runtimeValues = ApplicationRuntimeValues.instance
     private val timeFormatter = DateTimeFormatter.ofPattern("HH:mm")
     private var lastDiaryStorageWarning: String? = null
+
+    /** 是否狗狗（按品种判断，无宠物默认猫）。 */
+    private fun isDog(): Boolean =
+        PetBreeds.byId(repository.snapshot().pet?.breedId ?: "black_cat")?.type == PetType.DOG
+
+    /** 品种称呼：小狗 / 小猫。 */
+    private fun petKindText(): String = if (isDog()) "小狗" else "小猫"
+
+    /** 品种叫声：汪 / 喵。 */
+    private fun petSound(): String = if (isDog()) "汪" else "喵"
+
     private val startupGreeting = listOf(
         "你回来啦，我刚刚还在想你。",
         "今天也一起慢慢生活吧。",
         "见到你真好，要不要摸摸我？",
         "外面的世界很大，我会在这里等你。",
         "先深呼吸一下，再开始今天吧。",
-        "喵～今天有什么想和我说的吗？",
+        "${if (PetBreeds.byId(repository.snapshot().pet?.breedId ?: "black_cat")?.type == PetType.DOG) "汪" else "喵"}～今天有什么想和我说的吗？",
     ).random()
     private val initialSnapshot = repository.snapshot()
 
@@ -175,11 +187,12 @@ class PetPetViewModel(application: Application) : AndroidViewModel(application) 
     fun interact() {
         val (snapshot, gained) = repository.interact()
         applySnapshot(snapshot)
+        val petName = snapshot.pet?.name ?: petKindText()
         showNotice(
             snapshot.storageWarning ?: if (gained > 0) {
                 "摸摸成功，好感度 +$gained"
             } else {
-                "小猫很开心，今天的互动奖励已经领满啦"
+                "$petName 很开心，今天的互动奖励已经领满啦"
             },
         )
     }
@@ -192,7 +205,7 @@ class PetPetViewModel(application: Application) : AndroidViewModel(application) 
             return
         }
         if (_state.value.petTyping) {
-            showNotice("小猫正在想怎么回你，稍等一下喵")
+            showNotice("${petKindText()}正在想怎么回你，稍等一下${petSound()}")
             return
         }
 
@@ -231,6 +244,8 @@ class PetPetViewModel(application: Application) : AndroidViewModel(application) 
                     apiKey = chatApiKey,
                     message = normalized,
                     history = history,
+                    petName = _state.value.pet?.name ?: petKindText(),
+                    isDog = isDog(),
                 )
             } else {
                 gatewayClient.sendMessage(
@@ -239,6 +254,8 @@ class PetPetViewModel(application: Application) : AndroidViewModel(application) 
                     history = history,
                     provider = chatProvider.id,
                     apiKey = "",
+                    petName = _state.value.pet?.name ?: petKindText(),
+                    isDog = isDog(),
                 )
             }
             // 网关可用且未降级 → 用模型回复；否则回退本地规则
@@ -248,7 +265,7 @@ class PetPetViewModel(application: Application) : AndroidViewModel(application) 
                 // T-013：网络层失败（response == null）时明确提示离线陪伴状态；
                 // 安全/限流等 degraded 响应本身有内容，不额外打扰
                 if (response == null) {
-                    showNotice("网络不可用，小猫改用离线方式陪你")
+                    showNotice("网络不可用，${petKindText()}改用离线方式陪你")
                 }
                 replyFor(normalized)
             }
@@ -401,18 +418,20 @@ class PetPetViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     private fun replyFor(message: String): String {
+        val sound = petSound()
+        val kind = petKindText()
         return when {
             listOf("难过", "伤心", "不好", "累").any(message::contains) ->
-                "喵……我会安静地陪着你。今天已经很努力了，可以慢一点。"
+                "$sound……我会安静地陪着你。今天已经很努力了，可以慢一点。"
             listOf("开心", "高兴", "喜欢").any(message::contains) ->
-                "听起来是很棒的一天！我也跟着开心起来啦，喵～"
+                "听起来是很棒的一天！我也跟着开心起来啦，$sound～"
             listOf("早安", "早上好").any(message::contains) ->
                 "早安！今天也请带着一点点好心情出发吧。"
             listOf("晚安", "睡觉").any(message::contains) ->
                 "晚安，我会把尾巴圈起来，守着你的好梦。"
             message.endsWith("吗") || message.contains("？") || message.contains("?") ->
-                "让我用猫猫的方式想一想……我觉得你的感受最重要，喵。"
-            else -> "我听见啦！再和我多说一点吧，喵～"
+                "让我用${kind}的方式想一想……我觉得你的感受最重要，$sound。"
+            else -> "我听见啦！再和我多说一点吧，$sound～"
         }
     }
 

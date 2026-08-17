@@ -62,18 +62,20 @@ if (!API_KEY) {
 
 // 调用指定 Provider 的大模型（OpenAI 兼容接口），失败返回 null
 // provider 不在表内返回 { invalid: true }；apiKey 为空时回退 .env 的 ZHIPU_API_KEY（仅 zhipu）
-async function callProvider(providerId, apiKey, modelOverride, message, history) {
+async function callProvider(providerId, apiKey, modelOverride, message, history, petName, isDog) {
   const provider = PROVIDERS[providerId] || PROVIDERS.zhipu;
   const key = (apiKey && apiKey.trim()) || (providerId === "zhipu" ? API_KEY : "");
   if (!key) return null;
   const model = modelOverride || provider.model;
 
+  const kindText = isDog ? "小狗" : "小猫";
+  const sound = isDog ? "汪" : "喵";
   const messages = [
     {
       role: "system",
       content:
-        "你是 PETPET 里的一只小黑猫，叫" + (process.env.PET_NAME || "小铃铛") +
-        "。你温柔、简短、有点俏皮，像真正的宠物一样陪伴用户。回复控制在 60 字以内，多用'喵'，不要提及你是 AI 或模型。用户可能心情低落，先回应情绪再回应内容。",
+        "你是 PETPET 里的一只" + kindText + "，叫" + (petName || process.env.PET_NAME || "小铃铛") +
+        "。你温柔、简短、有点俏皮，像真正的宠物一样陪伴用户。回复控制在 60 字以内，多用'" + sound + "'，不要提及你是 AI 或模型。用户可能心情低落，先回应情绪再回应内容。",
     },
   ];
   // 最近 6 条历史（限制上下文，保护隐私 + 控制成本）
@@ -165,7 +167,7 @@ app.post("/api/community/like", (req, res) => {
 });
 
 app.post("/api/chat", async (req, res) => {
-  const { userId = "anonymous", message = "", history = [], provider = "zhipu", apiKey = "", model } = req.body || {};
+  const { userId = "anonymous", message = "", history = [], provider = "zhipu", apiKey = "", model, petName = "", isDog = false } = req.body || {};
 
   // 1. 输入校验
   if (typeof message !== "string" || message.trim().length === 0) {
@@ -193,7 +195,7 @@ app.post("/api/chat", async (req, res) => {
   }
 
   // 4. 模型转发（失败 → 降级）
-  const reply = await callProvider(provider, apiKey, model, message, history);
+  const reply = await callProvider(provider, apiKey, model, message, history, petName, Boolean(isDog));
   if (reply === null) {
     return res.json({ reply: "", degraded: true, reason: "model_unavailable" });
   }
