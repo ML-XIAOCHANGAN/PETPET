@@ -172,15 +172,15 @@ class PetPetViewModel(application: Application) : AndroidViewModel(application) 
                 )
                 showNotice(
                     if (backedUpCorruptedRaw) {
-                        "小猫日记已保存，损坏的原始内容也已备份"
+                        "${petKindText()}日记已保存，损坏的原始内容也已备份"
                     } else {
-                        "小猫日记保存成功"
+                        "${petKindText()}日记保存成功"
                     },
                 )
             } catch (exception: CancellationException) {
                 throw exception
             } catch (exception: Exception) {
-                showNotice("小猫日记保存失败，原有内容未被覆盖")
+                showNotice("${petKindText()}日记保存失败，原有内容未被覆盖")
             }
         }
     }
@@ -324,14 +324,19 @@ class PetPetViewModel(application: Application) : AndroidViewModel(application) 
             showNotice("动态内容需要是 1 至 500 个字符")
             return
         }
-        val snapshot = repository.createPost(normalized, images)
+        val petName = repository.snapshot().pet?.name
+        val snapshot = repository.createPost(
+            normalized,
+            images,
+            author = petName?.let { "我和我的${petKindText()}($it)" } ?: "我和我的${petKindText()}",
+        )
         applySnapshot(snapshot)
         showNotice(snapshot.storageWarning ?: "动态发布成功（离线已保存）")
         // 后台同步到线上（失败不影响本地）
         viewModelScope.launch {
             val ok = gatewayClient.publishCommunityPost(
                 authorId = "local-" + (repository.snapshot().pet?.name ?: "anonymous"),
-                author = repository.snapshot().pet?.name?.let { "我和我的小猫($it)" } ?: "我和我的小猫",
+                author = repository.snapshot().pet?.name?.let { "我和我的${petKindText()}($it)" } ?: "我和我的${petKindText()}",
                 text = normalized,
             )
             if (ok) {

@@ -159,6 +159,7 @@ fun GrowthScreen(
 
     if (showComposer) {
         DiaryComposerDialog(
+            isDog = isDog,
             onDismiss = { showComposer = false },
             onSave = { title, content, images ->
                 onAddDiary(title, content, images)
@@ -311,6 +312,7 @@ private fun DiaryCard(entry: DiaryEntry, onDelete: () -> Unit) {
 
 @Composable
 private fun DiaryComposerDialog(
+    isDog: Boolean,
     onDismiss: () -> Unit,
     onSave: (String, String, List<String>) -> Unit,
 ) {
@@ -328,7 +330,11 @@ private fun DiaryComposerDialog(
                 modifier = Modifier.padding(22.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
-                Text("写一篇小猫日记", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text(
+                    if (isDog) "写一篇小狗日记" else "写一篇小猫日记",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                )
                 OutlinedTextField(
                     value = title,
                     onValueChange = { if (it.length <= 30) title = it },
