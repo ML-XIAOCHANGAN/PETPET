@@ -10,6 +10,7 @@ import cn.petpet.app.data.pethealth.HealthAlertRules
 import cn.petpet.app.data.pethealth.HealthMealRecord
 import cn.petpet.app.data.pethealth.HealthPetProfile
 import cn.petpet.app.data.pethealth.HealthPlan
+import cn.petpet.app.data.pethealth.HealthTodo
 import cn.petpet.app.data.pethealth.HealthWeightRecord
 import cn.petpet.app.data.pethealth.PetBreedLibrary
 import cn.petpet.app.data.pethealth.PetGender
@@ -326,18 +327,24 @@ class PetHealthViewModel(application: Application) : AndroidViewModel(applicatio
         return HealthAlertRules.healthScore(hasMeal, hasWater, hasPoop, hasWeight, abnormalCount, redAlert)
     }
 
-    /** 今日待办列表（喂食/运动/疫苗/驱虫/称重）。 */
-    fun todayTodos(pet: HealthPetProfile): List<String> {
-        val todos = mutableListOf<String>()
-        val plan = planOf(pet)
-        todos += "喂食 ×${plan.feedingTimes}（推荐 ${plan.mealSizeG.toInt()}g/次）"
-        todos += "运动 ${plan.exerciseMinutes} 分钟"
-        val today = repository.today()
-        val dueVaccine = plan.vaccinePlan.firstOrNull { it.dueDate == today }
-        if (dueVaccine != null) todos += "疫苗：${dueVaccine.vaccineName}"
-        val dueDeworm = plan.dewormPlan.firstOrNull { it.dueDate == today }
-        if (dueDeworm != null) todos += "驱虫：${dueDeworm.type}"
-        return todos
+    /** 今日待办（用户自建，按宠物过滤）。 */
+    fun todayTodos(pet: HealthPetProfile): List<HealthTodo> =
+        _state.value.data.todos.filter { it.petId == pet.id }
+
+    fun addTodo(text: String) {
+        val petId = _state.value.currentPetId ?: return
+        if (text.isBlank()) return
+        viewModelScope.launch {
+            repository.addTodo(petId, text)
+        }
+    }
+
+    fun toggleTodo(todoId: Long) {
+        viewModelScope.launch { repository.toggleTodo(todoId) }
+    }
+
+    fun removeTodo(todoId: Long) {
+        viewModelScope.launch { repository.removeTodo(todoId) }
     }
 
     /** 上次记录距今天数（温和提醒用）。 */

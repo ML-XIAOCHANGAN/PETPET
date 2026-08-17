@@ -143,6 +143,15 @@ data class SelfCheckResult(
     val date: String,
 )
 
+/** 用户自定义待办事项（今日待办，2026-08 由系统自动生成改为用户自建）。 */
+data class HealthTodo(
+    val id: Long,
+    val petId: String,
+    val text: String,
+    val date: String,                // yyyy-MM-dd（待办归属日）
+    val done: Boolean = false,
+)
+
 /** 健康评分。 */
 data class HealthScore(
     val petId: String,

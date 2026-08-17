@@ -33,6 +33,7 @@ data class PetHealthLocalData(
     val weights: List<HealthWeightRecord>,
     val alerts: List<HealthAlert>,
     val selfChecks: List<SelfCheckResult>,
+    val todos: List<HealthTodo> = emptyList(),
 )
 
 /**
@@ -64,6 +65,7 @@ class PetHealthRepository(context: Context) {
                 weights = PetHealthJson.decodeWeights(prefs[KEY_WEIGHTS]),
                 alerts = PetHealthJson.decodeAlerts(prefs[KEY_ALERTS]),
                 selfChecks = PetHealthJson.decodeSelfChecks(prefs[KEY_SELF_CHECKS]),
+                todos = PetHealthJson.decodeTodos(prefs[KEY_TODOS]),
             )
         }
 
@@ -191,7 +193,40 @@ class PetHealthRepository(context: Context) {
     suspend fun resetAll() {
         dataStore.edit { prefs ->
             listOf(KEY_PETS, KEY_VACCINES, KEY_DEWORMS, KEY_MEALS, KEY_WATERS,
-                KEY_POOPS, KEY_WEIGHTS, KEY_ALERTS, KEY_SELF_CHECKS).forEach { prefs.remove(it) }
+                KEY_POOPS, KEY_WEIGHTS, KEY_ALERTS, KEY_SELF_CHECKS, KEY_TODOS).forEach { prefs.remove(it) }
+        }
+    }
+
+    // ---- 待办事项（用户自建） ----
+
+    suspend fun addTodo(petId: String, text: String) {
+        if (text.isBlank()) return
+        dataStore.edit { prefs ->
+            val current = PetHealthJson.decodeTodos(prefs[KEY_TODOS])
+            prefs[KEY_TODOS] = PetHealthJson.encodeTodos(
+                current + HealthTodo(
+                    id = System.currentTimeMillis(),
+                    petId = petId,
+                    text = text.trim(),
+                    date = today(),
+                ),
+            )
+        }
+    }
+
+    suspend fun toggleTodo(todoId: Long) {
+        dataStore.edit { prefs ->
+            val current = PetHealthJson.decodeTodos(prefs[KEY_TODOS])
+            prefs[KEY_TODOS] = PetHealthJson.encodeTodos(
+                current.map { if (it.id == todoId) it.copy(done = !it.done) else it },
+            )
+        }
+    }
+
+    suspend fun removeTodo(todoId: Long) {
+        dataStore.edit { prefs ->
+            val current = PetHealthJson.decodeTodos(prefs[KEY_TODOS])
+            prefs[KEY_TODOS] = PetHealthJson.encodeTodos(current.filterNot { it.id == todoId })
         }
     }
 
@@ -208,6 +243,7 @@ class PetHealthRepository(context: Context) {
         val KEY_WEIGHTS = stringPreferencesKey("ph_weights")
         val KEY_ALERTS = stringPreferencesKey("ph_alerts")
         val KEY_SELF_CHECKS = stringPreferencesKey("ph_self_checks")
+        val KEY_TODOS = stringPreferencesKey("ph_todos")
     }
 }
 
@@ -484,6 +520,32 @@ internal object PetHealthJson {
                         symptoms = buildList { repeat(symptomsArr.length()) { add(symptomsArr.getString(it)) } },
                         level = o.getString("level"), possibleCauses = o.optString("possibleCauses", ""),
                         advice = o.optString("advice", ""), date = o.getString("date")))
+                }
+            }
+        }.getOrDefault(emptyList())
+    }
+
+    fun encodeTodos(list: List<HealthTodo>): String {
+        val arr = JSONArray()
+        list.forEach { t ->
+            arr.put(JSONObject()
+                .put("id", t.id).put("petId", t.petId).put("text", t.text)
+                .put("date", t.date).put("done", t.done))
+        }
+        return arr.toString()
+    }
+
+    fun decodeTodos(raw: String?): List<HealthTodo> {
+        if (raw.isNullOrBlank()) return emptyList()
+        return runCatching {
+            val arr = JSONArray(raw)
+            buildList {
+                repeat(arr.length()) { i ->
+                    val o = arr.getJSONObject(i)
+                    add(HealthTodo(
+                        id = o.getLong("id"), petId = o.getString("petId"),
+                        text = o.getString("text"), date = o.getString("date"),
+                        done = o.optBoolean("done", false)))
                 }
             }
         }.getOrDefault(emptyList())

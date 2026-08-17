@@ -1,5 +1,8 @@
 package cn.petpet.app.ui.pethealth
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -15,19 +18,31 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cn.petpet.app.data.pethealth.HealthAlert
+import cn.petpet.app.data.pethealth.HealthTodo
 import cn.petpet.app.data.pethealth.PetHealthCalculator
 import cn.petpet.app.ui.components.ProgressRing
+import cn.petpet.app.ui.components.VoxelButton
+import cn.petpet.app.ui.components.VoxelButtonStyle
 
 /** 概览页：宠物健康卡片 + 今日待办 + 健康评分 + 异常提醒 + 计划速览。 */
 @Composable
@@ -56,6 +71,7 @@ fun HealthDashboard(viewModel: PetHealthViewModel) {
         .sortedByDescending { it.date }
 
     val redCount = openAlerts.count { it.priority == "红" }
+    var showAddTodo by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -116,7 +132,7 @@ fun HealthDashboard(viewModel: PetHealthViewModel) {
             }
         }
 
-        // 今日待办
+        // 今日待办（用户自建）
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(18.dp),
@@ -124,12 +140,28 @@ fun HealthDashboard(viewModel: PetHealthViewModel) {
             elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
         ) {
             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("今日待办", fontWeight = FontWeight.Bold)
-                todos.forEach { todo ->
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("☑", fontSize = 13.sp, color = PetHealthBlue)
-                        Spacer(Modifier.width(8.dp))
-                        Text(todo, fontSize = 13.sp)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("今日待办", fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                    Text(
+                        "＋ 添加",
+                        modifier = Modifier.clickable { showAddTodo = true },
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = PetHealthBlueDark,
+                    )
+                }
+                if (todos.isEmpty()) {
+                    Text(
+                        "还没有待办事项，点右上角「＋ 添加」记一条吧",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                } else {
+                    todos.forEach { todo ->
+                        TodoRow(todo) { viewModel.toggleTodo(todo.id) }
                     }
                 }
                 if (daysIdle > 0) {
@@ -141,6 +173,10 @@ fun HealthDashboard(viewModel: PetHealthViewModel) {
                     )
                 }
             }
+        }
+
+        if (showAddTodo) {
+            AddTodoDialog(viewModel) { showAddTodo = false }
         }
 
         // 异常提醒（红色优先）
@@ -262,5 +298,75 @@ fun AlertRow(alert: HealthAlert, onResolve: () -> Unit) {
             fontSize = 11.sp,
             color = PetHealthBlueDark,
         )
+    }
+}
+
+/**
+ * 待办事项行：左侧勾选框，勾选后文字透明度渐变到 70% 并加删除线。
+ */
+@Composable
+private fun TodoRow(todo: HealthTodo, onToggle: () -> Unit) {
+    // 勾选完成 → 透明度从 100% 渐变到 70%（动画过渡）
+    val textAlpha by animateFloatAsState(
+        targetValue = if (todo.done) 0.70f else 1f,
+        animationSpec = tween(durationMillis = 500, easing = FastOutSlowInEasing),
+        label = "待办完成透明度",
+    )
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Checkbox(
+            checked = todo.done,
+            onCheckedChange = { onToggle() },
+        )
+        Text(
+            todo.text,
+            fontSize = 13.sp,
+            modifier = Modifier
+                .weight(1f)
+                .graphicsLayer { alpha = textAlpha },
+            textDecoration = if (todo.done) TextDecoration.LineThrough else TextDecoration.None,
+            color = if (todo.done) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
+        )
+    }
+}
+
+/** 添加待办弹窗。 */
+@Composable
+private fun AddTodoDialog(viewModel: PetHealthViewModel, onDismiss: () -> Unit) {
+    var text by remember { mutableStateOf("") }
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surface) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Text("添加今日待办", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                OutlinedTextField(
+                    value = text, onValueChange = { if (it.length <= 30) text = it },
+                    label = { Text("待办内容（如：喂食、散步 30 分钟）*") },
+                    modifier = Modifier.fillMaxWidth(), singleLine = true,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    VoxelButton(text = "取消", onClick = onDismiss, compact = true, style = VoxelButtonStyle.NEUTRAL)
+                    VoxelButton(
+                        text = "添加",
+                        onClick = {
+                            if (text.isNotBlank()) {
+                                viewModel.addTodo(text)
+                                onDismiss()
+                            }
+                        },
+                        compact = true,
+                        enabled = text.isNotBlank(),
+                    )
+                }
+            }
+        }
     }
 }
