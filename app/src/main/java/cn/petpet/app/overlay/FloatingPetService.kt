@@ -9,12 +9,14 @@ import android.app.Service
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.PixelFormat
+import android.graphics.drawable.GradientDrawable
 import android.os.IBinder
 import android.util.Log
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
+import android.widget.FrameLayout
 import android.widget.TextView
 import androidx.core.app.NotificationCompat
 import cn.petpet.app.MainActivity
@@ -39,8 +41,6 @@ class FloatingPetService : Service() {
     private var notificationChannelReady = false
     private var floatingView: FloatingPetView? = null
     private var layoutParams: WindowManager.LayoutParams? = null
-    private var menuAnchorX: Int = 0
-    private var menuAnchorY: Int = 0
     private val chatScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     override fun onCreate() {
@@ -120,6 +120,12 @@ class FloatingPetService : Service() {
         }
         bubbleView = null
         bubbleParams = null
+        menuWindow?.let { menu ->
+            runCatching { windowManager?.removeView(menu) }
+                .onFailure { Log.w(TAG, "移除悬浮菜单失败", it) }
+        }
+        menuWindow = null
+        menuWindowParams = null
         chatScope.cancel()
         FloatingPetController.setRunning(false)
         super.onDestroy()
@@ -129,72 +135,29 @@ class FloatingPetService : Service() {
         if (floatingView != null) return true
         val windowManager = windowManager ?: return false
 
-        val collapsedSize = (FloatingPetView.PET_SIZE_DP * resources.displayMetrics.density).toInt()
-        val expandedSize = (FloatingPetView.EXPANDED_SIZE_DP * resources.displayMetrics.density).toInt()
+        val petSize = (FloatingPetView.PET_SIZE_DP * resources.displayMetrics.density).toInt()
         val savedPosition = getSharedPreferences(POSITION_PREFERENCES, MODE_PRIVATE)
         val params = WindowManager.LayoutParams(
-            collapsedSize,
-            collapsedSize,
+            petSize,
+            petSize,
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                 WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
             PixelFormat.TRANSLUCENT,
         ).apply {
             gravity = Gravity.TOP or Gravity.START
-            x = savedPosition.getInt(KEY_X, resources.displayMetrics.widthPixels - collapsedSize)
+            x = savedPosition.getInt(KEY_X, resources.displayMetrics.widthPixels - petSize)
             y = savedPosition.getInt(KEY_Y, resources.displayMetrics.heightPixels / 3)
         }
 
-        lateinit var view: FloatingPetView
         // 悬浮宠物图标 = 用户领养的宠物主头像
         val petBreedId = runCatching { PetPetRepository(this).snapshot().pet?.breedId }
             .getOrNull()
         val petAvatarRes = PetBreeds.byId(petBreedId ?: "")?.avatarRes ?: R.drawable.cat_main
-        view = FloatingPetView(
+        val view = FloatingPetView(
             context = this,
             petAvatarRes = petAvatarRes,
-            onMenuVisibilityChanged = { expanded ->
-                if (expanded) {
-                    val direction = chooseMenuDirection(
-                        handleX = params.x,
-                        handleY = params.y,
-                        handleSize = collapsedSize,
-                    )
-                    view.setExpansionDirection(direction)
-                    // 锚点 = 展开前宠物窗口左上角（宠物屏幕位置），展开/收起期间保持宠物绝对静止
-                    menuAnchorX = params.x
-                    menuAnchorY = params.y
-                    params.x = menuAnchorX - view.handleOffsetX
-                    params.y = menuAnchorY - view.handleOffsetY
-                    params.width = expandedSize
-                    params.height = expandedSize
-                } else {
-                    params.x = menuAnchorX
-                    params.y = menuAnchorY
-                    params.width = collapsedSize
-                    params.height = collapsedSize
-                    view.resetCollapsedLayout()
-                }
-                runCatching { windowManager.updateViewLayout(view, params) }
-            },
-            onInteract = {
-                runCatching { PetPetRepository(this).interact() }
-                    .onFailure { Log.e(TAG, "记录悬浮小猫互动失败", it) }
-            },
-            onOpenApp = { openMainScreen(openChat = false) },
-            // 💬 点击：应用在前台 → 跳转 MyPet 聊天；其他情况 → 居中偏下的独立聊天对话框
-            onChatPanelRequested = {
-                if (isAppInForeground()) {
-                    openMainScreen(openChat = true)
-                } else {
-                    showChatDialog(view, petBreedId ?: "")
-                }
-            },
-            onChatClose = {
-                hideChatDialog()
-                view.setChatMode(false)
-            },
-            onChat = { message -> startFloatingChat(view, petBreedId ?: "", message) },
+            onPetClicked = { toggleMenuWindow() },
         )
         attachDragBehavior(view, params, windowManager)
         return runCatching {
@@ -218,19 +181,11 @@ class FloatingPetService : Service() {
         var downX = 0f
         var downY = 0f
         var moved = false
-        // 按下时若菜单已展开会先收起（便于拖动）；此时抬起不应再触发 performClick 重新展开
-        var suppressNextClick = false
 
         // 监听器负责拖动；未发生拖动时仍调用 performClick，保留无障碍点击语义。
         view.petHandle.setOnTouchListener { touchedView, event ->
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
-                    if (view.isMenuExpanded) {
-                        view.closeMenu(immediate = true)
-                        suppressNextClick = true
-                    } else {
-                        suppressNextClick = false
-                    }
                     startX = params.x
                     startY = params.y
                     downX = event.rawX
@@ -241,16 +196,20 @@ class FloatingPetService : Service() {
                 MotionEvent.ACTION_MOVE -> {
                     val dx = (event.rawX - downX).toInt()
                     val dy = (event.rawY - downY).toInt()
-                    if (abs(dx) > 8 || abs(dy) > 8) moved = true
-                    val screenWidth = resources.displayMetrics.widthPixels
-                    val screenHeight = resources.displayMetrics.heightPixels
-                    params.x = (startX + dx).coerceIn(0, (screenWidth - view.width).coerceAtLeast(0))
-                    params.y = (startY + dy).coerceIn(0, (screenHeight - view.height).coerceAtLeast(0))
-                    runCatching { windowManager.updateViewLayout(view, params) }
+                    // 阈值 20px，避免普通点击被误判为拖动
+                    if (abs(dx) > 20 || abs(dy) > 20) moved = true
+                    if (moved) {
+                        val screenWidth = resources.displayMetrics.widthPixels
+                        val screenHeight = resources.displayMetrics.heightPixels
+                        params.x = (startX + dx).coerceIn(0, (screenWidth - view.width).coerceAtLeast(0))
+                        params.y = (startY + dy).coerceIn(0, (screenHeight - view.height).coerceAtLeast(0))
+                        runCatching { windowManager.updateViewLayout(view, params) }
+                    }
                     true
                 }
                 MotionEvent.ACTION_UP -> {
                     if (moved) {
+                        // 拖动结束：贴边 + 保存位置（仅真正拖动时）
                         val screenWidth = resources.displayMetrics.widthPixels
                         val screenHeight = resources.displayMetrics.heightPixels
                         val safeMargin = (6 * resources.displayMetrics.density).toInt()
@@ -268,14 +227,237 @@ class FloatingPetService : Service() {
                         }
                         runCatching { windowManager.updateViewLayout(view, params) }
                         savePosition(params.x, params.y)
-                    } else if (!suppressNextClick) {
-                        // 普通点击：菜单开→关、菜单关→开
+                    } else {
+                        // 普通点击（无拖动）：切换菜单显示
                         touchedView.performClick()
                     }
-                    suppressNextClick = false
                     true
                 }
                 else -> false
+            }
+        }
+    }
+
+    // ── 环形菜单（独立 overlay 窗口，宠物窗口保持位置静止） ──
+
+    private var menuWindow: FrameLayout? = null
+    private var menuWindowParams: WindowManager.LayoutParams? = null
+    private var menuButtons = mutableListOf<TextView>()
+    private var menuDirection: FloatingMenuDirection = FloatingMenuDirection.RIGHT
+
+    private fun toggleMenuWindow() {
+        if (menuWindow != null && menuWindow?.parent != null) {
+            hideMenuWindow()
+        } else {
+            showMenuWindow()
+        }
+    }
+
+    private fun showMenuWindow() {
+        val windowManager = windowManager ?: return
+        val density = resources.displayMetrics.density
+        val petSize = (FloatingPetView.PET_SIZE_DP * density).toInt()
+        val spread = (FloatingPetView.MENU_SPREAD_DP * density).toInt()
+        val petX = layoutParams?.x ?: 0
+        val petY = layoutParams?.y ?: 0
+
+        if (menuWindow == null) {
+            val root = FrameLayout(this).apply {
+                setBackgroundColor(Color.TRANSPARENT)
+                clipChildren = false
+                clipToPadding = false
+                setOnClickListener { hideMenuWindow() }
+            }
+            val rootParams = WindowManager.LayoutParams(
+                spread,
+                spread,
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                PixelFormat.TRANSLUCENT,
+            ).apply {
+                gravity = Gravity.TOP or Gravity.START
+            }
+            menuWindow = root
+            menuWindowParams = rootParams
+            // 三个按钮（创建后位置由 placeMenuButtons 设置）
+            menuButtons = mutableListOf(
+                menuButton("🐾", "和小宠物互动") { onInteractFromMenu() },
+                menuButton("⌂", "返回应用") { onOpenAppFromMenu() },
+                menuButton("💬", "打开聊天面板") { onChatFromMenu() },
+            )
+            menuButtons.forEach { root.addView(it) }
+        }
+
+        val root = menuWindow ?: return
+        val rootParams = menuWindowParams ?: return
+
+        // 方向：宠物距屏幕哪边近就向哪边展开
+        menuDirection = chooseMenuDirection(petX, petY, petSize)
+        val centered = (spread - petSize) / 2
+        val (offX, offY) = when (menuDirection) {
+            FloatingMenuDirection.RIGHT -> 0 to centered
+            FloatingMenuDirection.LEFT -> (spread - petSize) to centered
+            FloatingMenuDirection.DOWN -> centered to 0
+            FloatingMenuDirection.UP -> centered to (spread - petSize)
+        }
+        // 菜单窗口覆盖宠物周围，宠物在窗口内 (offX, offY) —— 宠物窗口本身不动
+        rootParams.x = (petX - offX).coerceAtLeast(0)
+        rootParams.y = (petY - offY).coerceAtLeast(0)
+
+        // 第三个按钮按聊天状态显示 💬 或 ✕
+        val chatBtn = menuButtons[2]
+        if (floatingView?.isChatMode == true) {
+            chatBtn.text = "✕"
+            chatBtn.contentDescription = "退出聊天"
+        } else {
+            chatBtn.text = "💬"
+            chatBtn.contentDescription = "打开聊天面板"
+        }
+
+        placeMenuButtons(rootParams.x, rootParams.y, petSize)
+
+        runCatching {
+            if (root.parent == null) {
+                windowManager.addView(root, rootParams)
+            } else {
+                windowManager.updateViewLayout(root, rootParams)
+            }
+        }.onFailure { Log.w(TAG, "挂载悬浮菜单失败", it) }
+
+        // 弹出动画：按钮从宠物中心依次滑出（190ms 弹出 + 38ms 错峰）
+        root.post {
+            val centered = (spread - petSize) / 2
+            val (offX, offY) = when (menuDirection) {
+                FloatingMenuDirection.RIGHT -> 0 to centered
+                FloatingMenuDirection.LEFT -> (spread - petSize) to centered
+                FloatingMenuDirection.DOWN -> centered to 0
+                FloatingMenuDirection.UP -> centered to (spread - petSize)
+            }
+            val petCenterX = offX + petSize / 2f
+            val petCenterY = offY + petSize / 2f
+            menuButtons.forEachIndexed { index, button ->
+                val targetX = button.left + button.width / 2f
+                val targetY = button.top + button.height / 2f
+                button.animate().cancel()
+                button.translationX = petCenterX - targetX
+                button.translationY = petCenterY - targetY
+                button.alpha = 0f
+                button.scaleX = 0.85f
+                button.scaleY = 0.85f
+                button.animate()
+                    .translationX(0f)
+                    .translationY(0f)
+                    .alpha(1f)
+                    .scaleX(1f)
+                    .scaleY(1f)
+                    .setDuration(190L)
+                    .setStartDelay(index * 38L)
+                    .start()
+            }
+        }
+    }
+
+    private fun hideMenuWindow() {
+        val windowManager = windowManager ?: return
+        val root = menuWindow ?: return
+        runCatching { windowManager.removeView(root) }
+            .onFailure { Log.w(TAG, "移除悬浮菜单失败", it) }
+    }
+
+    /** 放置三个按钮：宠物在菜单窗口内 (offX, offY)，按钮环绕宠物。 */
+    private fun placeMenuButtons(windowX: Int, windowY: Int, petSize: Int) {
+        val density = resources.displayMetrics.density
+        val spread = (FloatingPetView.MENU_SPREAD_DP * density).toInt()
+        val centered = (spread - petSize) / 2
+        val (offX, offY) = when (menuDirection) {
+            FloatingMenuDirection.RIGHT -> 0 to centered
+            FloatingMenuDirection.LEFT -> (spread - petSize) to centered
+            FloatingMenuDirection.DOWN -> centered to 0
+            FloatingMenuDirection.UP -> centered to (spread - petSize)
+        }
+        val center = spread / 2
+        val near = (72 * density).toInt()
+        val far = (98 * density).toInt()
+        val spreadDist = (49 * density).toInt()
+        val petCenterX = offX + petSize / 2
+        val petCenterY = offY + petSize / 2
+
+        val centers = when (menuDirection) {
+            FloatingMenuDirection.RIGHT -> listOf(
+                petCenterX + near to center - spreadDist,
+                petCenterX + far to center,
+                petCenterX + near to center + spreadDist,
+            )
+            FloatingMenuDirection.LEFT -> listOf(
+                petCenterX - near to center - spreadDist,
+                petCenterX - far to center,
+                petCenterX - near to center + spreadDist,
+            )
+            FloatingMenuDirection.DOWN -> listOf(
+                center - spreadDist to petCenterY + near,
+                center to petCenterY + far,
+                center + spreadDist to petCenterY + near,
+            )
+            FloatingMenuDirection.UP -> listOf(
+                center - spreadDist to petCenterY - near,
+                center to petCenterY - far,
+                center + spreadDist to petCenterY - near,
+            )
+        }
+
+        val buttonSize = (FloatingPetView.MENU_BUTTON_SIZE_DP * density).toInt()
+        menuButtons.zip(centers).forEach { (button, point) ->
+            button.layoutParams = FrameLayout.LayoutParams(buttonSize, buttonSize).apply {
+                leftMargin = point.first - buttonSize / 2
+                topMargin = point.second - buttonSize / 2
+            }
+        }
+    }
+
+    private fun menuButton(emoji: String, description: String, action: () -> Unit): TextView {
+        val density = resources.displayMetrics.density
+        val size = (FloatingPetView.MENU_BUTTON_SIZE_DP * density).toInt()
+        return TextView(this).apply {
+            text = emoji
+            textSize = 23f
+            gravity = Gravity.CENTER
+            contentDescription = description
+            isClickable = true
+            isFocusable = true
+            elevation = (6 * density).toFloat()
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(Color.argb(242, 255, 255, 255))
+                setStroke((1 * density).toInt(), Color.argb(28, 20, 24, 21))
+            }
+            setOnClickListener { action() }
+            layoutParams = FrameLayout.LayoutParams(size, size)
+        }
+    }
+
+    private fun onInteractFromMenu() {
+        hideMenuWindow()
+        runCatching { PetPetRepository(this).interact() }
+            .onFailure { Log.e(TAG, "记录悬浮小猫互动失败", it) }
+    }
+
+    private fun onOpenAppFromMenu() {
+        hideMenuWindow()
+        openMainScreen(openChat = false)
+    }
+
+    private fun onChatFromMenu() {
+        hideMenuWindow()
+        val view = floatingView ?: return
+        if (view.isChatMode) {
+            hideChatDialog()
+            view.setChatMode(false)
+        } else {
+            if (isAppInForeground()) {
+                openMainScreen(openChat = true)
+            } else {
+                showChatDialog(view, chatPetBreedId.ifEmpty { runCatching { PetPetRepository(this).snapshot().pet?.breedId }.getOrNull() ?: "" })
             }
         }
     }
