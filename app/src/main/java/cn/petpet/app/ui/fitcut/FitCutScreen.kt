@@ -14,9 +14,12 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
@@ -50,12 +53,36 @@ fun FitCutScreen(
     onClose: () -> Unit,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val snackbarHostState = remember { SnackbarHostState() }
 
-    if (state.data.profile == null || state.onboardingStep < 4) {
-        // 未建档（或正在编辑档案）→ 引导流程（带退出按钮，避免卡在引导页）
-        FitCutOnboarding(viewModel = viewModel, onClose = onClose)
-        return
+    // 显示 FitCut 自身的提示（校验失败等），此前 notice 无 UI 展示导致"点了没反应"
+    LaunchedEffect(state.notice) {
+        state.notice?.let {
+            snackbarHostState.showSnackbar(it)
+            viewModel.consumeNotice()
+        }
     }
+
+    Box {
+        if (state.data.profile == null || state.onboardingStep < 4) {
+            // 未建档（或正在编辑档案）→ 引导流程（带退出按钮，避免卡在引导页）
+            FitCutOnboarding(viewModel = viewModel, onClose = onClose)
+        } else {
+            FitCutMainScreen(viewModel, onClose)
+        }
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding(),
+        )
+    }
+}
+
+@Composable
+private fun FitCutMainScreen(
+    viewModel: FitCutViewModel,
+    onClose: () -> Unit,
+) {
+    val state by viewModel.state.collectAsStateWithLifecycle()
 
     var tab by remember { mutableIntStateOf(0) }
 
