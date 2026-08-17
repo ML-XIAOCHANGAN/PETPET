@@ -152,7 +152,7 @@ class PetPetViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    fun addDiaryEntry(title: String, content: String) {
+    fun addDiaryEntry(title: String, content: String, images: List<String> = emptyList()) {
         val normalizedTitle = title.trim()
         val normalizedContent = content.trim()
         if (normalizedTitle.length !in 1..30) {
@@ -168,6 +168,7 @@ class PetPetViewModel(application: Application) : AndroidViewModel(application) 
                 val backedUpCorruptedRaw = preferencesRepository.addDiaryEntry(
                     normalizedTitle,
                     normalizedContent,
+                    images,
                 )
                 showNotice(
                     if (backedUpCorruptedRaw) {
@@ -181,6 +182,13 @@ class PetPetViewModel(application: Application) : AndroidViewModel(application) 
             } catch (exception: Exception) {
                 showNotice("小猫日记保存失败，原有内容未被覆盖")
             }
+        }
+    }
+
+    fun deleteDiaryEntry(entryId: Long) {
+        viewModelScope.launch {
+            preferencesRepository.deleteDiaryEntry(entryId)
+            showNotice("日记已删除")
         }
     }
 
@@ -310,13 +318,13 @@ class PetPetViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    fun createPost(text: String) {
+    fun createPost(text: String, images: List<String> = emptyList()) {
         val normalized = text.trim()
         if (normalized.length !in 1..500) {
             showNotice("动态内容需要是 1 至 500 个字符")
             return
         }
-        val snapshot = repository.createPost(normalized)
+        val snapshot = repository.createPost(normalized, images)
         applySnapshot(snapshot)
         showNotice(snapshot.storageWarning ?: "动态发布成功（离线已保存）")
         // 后台同步到线上（失败不影响本地）

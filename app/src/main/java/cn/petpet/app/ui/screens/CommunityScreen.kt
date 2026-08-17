@@ -54,6 +54,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
@@ -68,6 +69,7 @@ import cn.petpet.app.model.CommunityPost
 import cn.petpet.app.model.PetBreeds
 import cn.petpet.app.model.PetProfile
 import cn.petpet.app.model.PetType
+import cn.petpet.app.ui.components.ImagePickerRow
 import cn.petpet.app.ui.components.VoxelButton
 import cn.petpet.app.ui.components.drawCommentIcon
 import cn.petpet.app.ui.components.drawHeartFilledIcon
@@ -94,7 +96,7 @@ fun CommunityScreen(
     posts: List<CommunityPost>,
     online: Boolean = false,
     onRefreshNetwork: () -> Unit = {},
-    onCreatePost: (String) -> Unit,
+    onCreatePost: (String, List<String>) -> Unit,
     onToggleLike: (Long) -> Unit,
     onAddComment: (Long, String) -> Unit,
     onReport: () -> Unit,
@@ -103,6 +105,7 @@ fun CommunityScreen(
 ) {
     var postText by rememberSaveable { mutableStateOf("") }
     var composerExpanded by rememberSaveable { mutableStateOf(false) }
+    var postImages by remember { mutableStateOf<List<String>>(emptyList()) }
     val isDog = PetBreeds.byId(pet.breedId)?.type == PetType.DOG
 
     // 首次进入尝试拉取在线动态（失败静默，保持离线模式）
@@ -162,11 +165,14 @@ fun CommunityScreen(
                 isDog = isDog,
                 expanded = composerExpanded,
                 text = postText,
+                images = postImages,
+                onImagesChange = { postImages = it },
                 onExpandedChange = { composerExpanded = it },
                 onTextChange = { if (it.length <= 500) postText = it },
                 onPublish = {
-                    onCreatePost(postText)
+                    onCreatePost(postText, postImages)
                     postText = ""
+                    postImages = emptyList()
                     composerExpanded = false
                 },
             )
@@ -286,6 +292,8 @@ private fun CommunityComposer(
     isDog: Boolean,
     expanded: Boolean,
     text: String,
+    images: List<String>,
+    onImagesChange: (List<String>) -> Unit,
     onExpandedChange: (Boolean) -> Unit,
     onTextChange: (String) -> Unit,
     onPublish: () -> Unit,
@@ -317,6 +325,13 @@ private fun CommunityComposer(
                     minLines = 2,
                     maxLines = 4,
                     shape = RoundedCornerShape(18.dp),
+                )
+                // 配图（最多 3 张）
+                ImagePickerRow(
+                    images = images,
+                    onImagesChange = onImagesChange,
+                    maxCount = 3,
+                    hint = "图片",
                 )
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -491,6 +506,29 @@ private fun PostCard(
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
+
+                // 配图展示（本地内部路径）
+                if (post.images.isNotEmpty()) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        post.images.take(3).forEach { path ->
+                            val bitmap = remember(path) {
+                                runCatching { android.graphics.BitmapFactory.decodeFile(path) }.getOrNull()
+                            }
+                            if (bitmap != null) {
+                                Image(
+                                    bitmap = bitmap.asImageBitmap(),
+                                    contentDescription = null,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier
+                                        .size(96.dp)
+                                        .clip(RoundedCornerShape(14.dp)),
+                                )
+                            }
+                        }
+                    }
+                }
 
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     LikeChip(

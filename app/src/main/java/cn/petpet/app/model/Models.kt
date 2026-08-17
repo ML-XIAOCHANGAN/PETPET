@@ -36,6 +36,8 @@ data class CommunityPost(
     val comments: List<CommunityComment> = emptyList(),
     val collected: Boolean = false,
     val disliked: Boolean = false,
+    /** 图片路径列表（本地内部目录；网关同步不含图片，仅本地展示）。 */
+    val images: List<String> = emptyList(),
 )
 
 enum class HomeSection(val title: String, val symbol: String) {
@@ -49,6 +51,8 @@ data class DiaryEntry(
     val title: String,
     val content: String,
     val createdAt: String,
+    /** 图片路径列表（应用内部目录，2026-08 支持配图日记）。 */
+    val images: List<String> = emptyList(),
 )
 
 data class PetPetUiState(

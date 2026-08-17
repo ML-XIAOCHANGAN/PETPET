@@ -31,6 +31,7 @@ internal object PersistenceCodecs {
                             title = item.getString("title"),
                             content = item.getString("content"),
                             createdAt = item.getString("createdAt"),
+                            images = decodeStringList(item, "images"),
                         ),
                     )
                 }
@@ -49,7 +50,8 @@ internal object PersistenceCodecs {
                     .put("id", entry.id)
                     .put("title", entry.title)
                     .put("content", entry.content)
-                    .put("createdAt", entry.createdAt),
+                    .put("createdAt", entry.createdAt)
+                    .put("images", JSONArray(entry.images)),
             )
         }
         return array.toString()
@@ -92,6 +94,7 @@ internal object PersistenceCodecs {
                             comments = comments,
                             collected = if (item.has("collected")) item.getBoolean("collected") else false,
                             disliked = if (item.has("disliked")) item.getBoolean("disliked") else false,
+                            images = decodeStringList(item, "images"),
                         ),
                     )
                 }
@@ -124,9 +127,20 @@ internal object PersistenceCodecs {
                     .put("likeCount", post.likeCount)
                     .put("comments", comments)
                     .put("collected", post.collected)
-                    .put("disliked", post.disliked),
+                    .put("disliked", post.disliked)
+                    .put("images", JSONArray(post.images)),
             )
         }
         return array.toString()
+    }
+
+    /** 容错读取字符串数组字段（缺失/非数组返回空列表）。 */
+    private fun decodeStringList(item: JSONObject, key: String): List<String> {
+        val arr = item.optJSONArray(key) ?: return emptyList()
+        return buildList {
+            repeat(arr.length()) { i ->
+                arr.optString(i, "").takeIf { it.isNotBlank() }?.let { add(it) }
+            }
+        }
     }
 }

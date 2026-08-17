@@ -92,7 +92,7 @@ class PetPetPreferencesRepository(
         }
     }
 
-    suspend fun addDiaryEntry(title: String, content: String): Boolean {
+    suspend fun addDiaryEntry(title: String, content: String, images: List<String> = emptyList()): Boolean {
         var backedUpCorruptedRaw = false
         dataStore.edit { preferences ->
             val decoded = PersistenceCodecs.decodeDiaryEntries(preferences[KEY_DIARY_ENTRIES])
@@ -105,12 +105,28 @@ class PetPetPreferencesRepository(
                 title = title.trim(),
                 content = content.trim(),
                 createdAt = runtimeValues.now().format(dateTimeFormatter),
+                images = images,
             )
             preferences[KEY_DIARY_ENTRIES] = PersistenceCodecs.encodeDiaryEntries(
                 listOf(newEntry) + decoded.value,
             )
         }
         return backedUpCorruptedRaw
+    }
+
+    /** 删除一篇日记（连同其本地配图文件）。 */
+    suspend fun deleteDiaryEntry(entryId: Long) {
+        dataStore.edit { preferences ->
+            val decoded = PersistenceCodecs.decodeDiaryEntries(preferences[KEY_DIARY_ENTRIES])
+            val target = decoded.value.firstOrNull { it.id == entryId }
+            preferences[KEY_DIARY_ENTRIES] = PersistenceCodecs.encodeDiaryEntries(
+                decoded.value.filterNot { it.id == entryId },
+            )
+            // 清理配图文件（在 DataStore 写成功后再删，避免文件删了数据还在）
+            target?.images?.forEach { path ->
+                cn.petpet.app.data.PetImageStorage.deleteImage(path)
+            }
+        }
     }
 
     private fun safePreferencesFlow(): Flow<SafePreferences> {

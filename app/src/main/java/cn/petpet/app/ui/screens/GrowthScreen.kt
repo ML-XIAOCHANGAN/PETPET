@@ -4,6 +4,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -18,6 +19,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -29,7 +32,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -42,6 +47,7 @@ import cn.petpet.app.model.DiaryEntry
 import cn.petpet.app.model.PetBreeds
 import cn.petpet.app.model.PetProfile
 import cn.petpet.app.model.PetType
+import cn.petpet.app.ui.components.ImagePickerRow
 import cn.petpet.app.ui.components.InteractiveBlackCatAvatar
 import cn.petpet.app.ui.components.VoxelButton
 import cn.petpet.app.ui.components.VoxelButtonStyle
@@ -53,7 +59,8 @@ import java.time.temporal.ChronoUnit
 fun GrowthScreen(
     pet: PetProfile,
     diaryEntries: List<DiaryEntry>,
-    onAddDiary: (String, String) -> Unit,
+    onAddDiary: (String, String, List<String>) -> Unit,
+    onDeleteDiary: (Long) -> Unit = {},
     onOpenFitCut: () -> Unit = {},
     onOpenPetHealth: () -> Unit = {},
 ) {
@@ -145,7 +152,7 @@ fun GrowthScreen(
             }
         } else {
             items(diaryEntries, key = DiaryEntry::id) { entry ->
-                DiaryCard(entry)
+                DiaryCard(entry = entry, onDelete = { onDeleteDiary(entry.id) })
             }
         }
     }
@@ -153,8 +160,8 @@ fun GrowthScreen(
     if (showComposer) {
         DiaryComposerDialog(
             onDismiss = { showComposer = false },
-            onSave = { title, content ->
-                onAddDiary(title, content)
+            onSave = { title, content, images ->
+                onAddDiary(title, content, images)
                 showComposer = false
             },
         )
@@ -220,7 +227,8 @@ private fun MyProfileCard(pet: PetProfile) {
 }
 
 @Composable
-private fun DiaryCard(entry: DiaryEntry) {
+private fun DiaryCard(entry: DiaryEntry, onDelete: () -> Unit) {
+    var menuExpanded by remember { mutableStateOf(false) }
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(22.dp),
@@ -230,7 +238,40 @@ private fun DiaryCard(entry: DiaryEntry) {
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
     ) {
         Column(Modifier.padding(18.dp)) {
-            Text(entry.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    entry.title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.weight(1f),
+                )
+                // 左上角 ⋮ 菜单（删除）
+                Box {
+                    Text(
+                        "⋮",
+                        modifier = Modifier
+                            .clickable { menuExpanded = true }
+                            .padding(horizontal = 4.dp, vertical = 2.dp),
+                        fontSize = 18.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    DropdownMenu(
+                        expanded = menuExpanded,
+                        onDismissRequest = { menuExpanded = false },
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("删除", fontSize = 13.sp, color = MaterialTheme.colorScheme.error) },
+                            onClick = {
+                                menuExpanded = false
+                                onDelete()
+                            },
+                        )
+                    }
+                }
+            }
             Text(
                 entry.createdAt,
                 style = MaterialTheme.typography.labelMedium,
@@ -241,6 +282,29 @@ private fun DiaryCard(entry: DiaryEntry) {
                 modifier = Modifier.padding(top = 12.dp),
                 style = MaterialTheme.typography.bodyLarge,
             )
+            // 配图展示
+            if (entry.images.isNotEmpty()) {
+                Row(
+                    modifier = Modifier.padding(top = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    entry.images.take(3).forEach { path ->
+                        val bitmap = remember(path) {
+                            runCatching { android.graphics.BitmapFactory.decodeFile(path) }.getOrNull()
+                        }
+                        if (bitmap != null) {
+                            Image(
+                                bitmap = bitmap.asImageBitmap(),
+                                contentDescription = null,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier
+                                    .size(88.dp)
+                                    .clip(RoundedCornerShape(12.dp)),
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -248,10 +312,11 @@ private fun DiaryCard(entry: DiaryEntry) {
 @Composable
 private fun DiaryComposerDialog(
     onDismiss: () -> Unit,
-    onSave: (String, String) -> Unit,
+    onSave: (String, String, List<String>) -> Unit,
 ) {
     var title by rememberSaveable { mutableStateOf("") }
     var content by rememberSaveable { mutableStateOf("") }
+    var images by remember { mutableStateOf<List<String>>(emptyList()) }
 
     Dialog(onDismissRequest = onDismiss) {
         Card(
@@ -281,6 +346,13 @@ private fun DiaryComposerDialog(
                     minLines = 5,
                     maxLines = 10,
                 )
+                // 配图（Photo Picker 免权限选图，最多 3 张）
+                ImagePickerRow(
+                    images = images,
+                    onImagesChange = { images = it },
+                    maxCount = 3,
+                    hint = "图片",
+                )
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -294,7 +366,7 @@ private fun DiaryComposerDialog(
                     )
                     VoxelButton(
                         text = "保存",
-                        onClick = { onSave(title, content) },
+                        onClick = { onSave(title, content, images) },
                         modifier = Modifier.weight(1f),
                         enabled = title.isNotBlank() && content.isNotBlank(),
                         compact = true,

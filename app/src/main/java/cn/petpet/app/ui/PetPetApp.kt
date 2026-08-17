@@ -135,6 +135,7 @@ fun PetPetApp(
                                 pet = requireNotNull(state.pet),
                                 diaryEntries = state.diaryEntries,
                                 onAddDiary = viewModel::addDiaryEntry,
+                                onDeleteDiary = viewModel::deleteDiaryEntry,
                                 onOpenFitCut = { showFitCut = true },
                                 onOpenPetHealth = { showPetHealth = true },
                             )

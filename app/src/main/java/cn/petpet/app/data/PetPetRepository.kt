@@ -104,7 +104,7 @@ class PetPetRepository(
         return snapshot() to result.gained
     }
 
-    fun createPost(text: String): LocalSnapshot {
+    fun createPost(text: String, images: List<String> = emptyList()): LocalSnapshot {
         val readResult = readPosts()
         val posts = readResult.posts.toMutableList()
         posts.add(
@@ -114,6 +114,7 @@ class PetPetRepository(
                 author = "我和我的小猫",
                 text = text.trim(),
                 time = runtimeValues.now().format(dateTimeFormatter),
+                images = images,
             ),
         )
         writePosts(posts)
