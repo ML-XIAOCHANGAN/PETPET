@@ -39,6 +39,8 @@ class FloatingPetService : Service() {
     private var notificationChannelReady = false
     private var floatingView: FloatingPetView? = null
     private var layoutParams: WindowManager.LayoutParams? = null
+    private var menuAnchorX: Int = 0
+    private var menuAnchorY: Int = 0
     private val chatScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     override fun onCreate() {
@@ -159,13 +161,16 @@ class FloatingPetService : Service() {
                         handleSize = collapsedSize,
                     )
                     view.setExpansionDirection(direction)
-                    params.x -= view.handleOffsetX
-                    params.y -= view.handleOffsetY
+                    // 锚点 = 展开前宠物窗口左上角（宠物屏幕位置），展开/收起期间保持宠物绝对静止
+                    menuAnchorX = params.x
+                    menuAnchorY = params.y
+                    params.x = menuAnchorX - view.handleOffsetX
+                    params.y = menuAnchorY - view.handleOffsetY
                     params.width = expandedSize
                     params.height = expandedSize
                 } else {
-                    params.x += view.handleOffsetX
-                    params.y += view.handleOffsetY
+                    params.x = menuAnchorX
+                    params.y = menuAnchorY
                     params.width = collapsedSize
                     params.height = collapsedSize
                     view.resetCollapsedLayout()
@@ -184,6 +189,10 @@ class FloatingPetService : Service() {
                 } else {
                     showChatDialog(view, petBreedId ?: "")
                 }
+            },
+            onChatClose = {
+                hideChatDialog()
+                view.setChatMode(false)
             },
             onChat = { message -> startFloatingChat(view, petBreedId ?: "", message) },
         )
@@ -536,6 +545,7 @@ class FloatingPetService : Service() {
         val windowManager = windowManager ?: return
         chatPetView = view
         chatPetBreedId = breedId
+        view.setChatMode(true)
 
         if (chatDialogView == null) buildChatDialog()
         val dialog = chatDialogView ?: return
@@ -554,6 +564,7 @@ class FloatingPetService : Service() {
         val dialog = chatDialogView ?: return
         runCatching { windowManager.removeView(dialog) }
             .onFailure { Log.w(TAG, "移除悬浮聊天对话框失败", it) }
+        chatPetView?.setChatMode(false)
         hideKeyboardFrom(dialog)
     }
 
@@ -627,6 +638,28 @@ class FloatingPetService : Service() {
             isSingleLine = true
             setBackgroundColor(Color.TRANSPARENT)
             imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_SEND
+            // NOT_FOCUSABLE 窗口需要点击时移除 flag 才能聚焦弹键盘（DOWN 时移除，本次事件即可聚焦）
+            setOnTouchListener { _, event ->
+                if (event.actionMasked == android.view.MotionEvent.ACTION_DOWN) {
+                    chatDialogParams?.let { p ->
+                        if (p.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE != 0) {
+                            p.flags = p.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()
+                            runCatching { windowManager?.updateViewLayout(chatDialogView, p) }
+                        }
+                    }
+                }
+                false
+            }
+        }
+        input.setOnFocusChangeListener { _, hasFocus ->
+            if (!hasFocus) {
+                chatDialogParams?.let { p ->
+                    if (p.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE == 0) {
+                        p.flags = p.flags or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                        runCatching { windowManager?.updateViewLayout(chatDialogView, p) }
+                    }
+                }
+            }
         }
         input.setOnEditorActionListener { _, actionId, _ ->
             if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_SEND) {
@@ -655,12 +688,15 @@ class FloatingPetService : Service() {
 
         chatInput = input
 
-        // 窗口参数：水平居中，垂直位置在屏幕 62% 处（居中偏下、与底部保持距离）
+        // 窗口参数：水平居中，垂直位置在屏幕 62% 处（居中偏下、与底部保持距离）。
+        // 注意：不带 NOT_FOCUSABLE 时对话框会抢走屏幕触摸（实测悬浮宠物点击失效），
+        // 因此保持 NOT_FOCUSABLE，输入框聚焦由点击时动态移除该 flag 实现（见 showChatDialog）。
         chatDialogParams = WindowManager.LayoutParams(
             dialogW,
             android.view.ViewGroup.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
             PixelFormat.TRANSLUCENT,
         ).apply {
             gravity = Gravity.TOP or Gravity.START

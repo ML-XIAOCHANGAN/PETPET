@@ -35,12 +35,17 @@ class FloatingPetView(
     private val onInteract: () -> Unit,
     private val onOpenApp: () -> Unit,
     private val onChatPanelRequested: () -> Unit,
+    private val onChatClose: () -> Unit,
     private val onChat: (String) -> Unit,
 ) : FrameLayout(context) {
     val petHandle = ImageView(context)
     private val handler = Handler(Looper.getMainLooper())
-    private var menuButtons = mutableListOf<TextView>()
+    private val menuButtons = mutableListOf<TextView>()
     private var mainAvatarRes: Int = petAvatarRes
+
+    /** 聊天状态：true 时第三个菜单按钮显示 ✕（退出对话框），false 显示 💬（打开聊天）。 */
+    var isChatMode: Boolean = false
+        private set
 
     var isMenuExpanded: Boolean = false
         private set
@@ -80,11 +85,26 @@ class FloatingPetView(
         }
         menuButtons += emojiButton("💬", "打开聊天面板") {
             closeMenu()
-            onChatPanelRequested()
+            if (isChatMode) onChatClose() else onChatPanelRequested()
         }
         menuButtons.forEach { button ->
             button.visibility = View.GONE
             addView(button)
+        }
+    }
+
+    /** 进入/退出聊天状态：true 时第三个菜单按钮变为 ✕，false 恢复 💬。 */
+    fun setChatMode(enabled: Boolean) {
+        isChatMode = enabled
+        if (menuButtons.size >= 3) {
+            val chatBtn = menuButtons[2]
+            if (enabled) {
+                chatBtn.text = "✕"
+                chatBtn.contentDescription = "退出聊天"
+            } else {
+                chatBtn.text = "💬"
+                chatBtn.contentDescription = "打开聊天面板"
+            }
         }
     }
 
