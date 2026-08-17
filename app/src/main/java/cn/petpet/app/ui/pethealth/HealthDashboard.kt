@@ -20,8 +20,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.DatePicker
-import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -29,8 +27,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -40,6 +36,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -170,13 +167,40 @@ fun HealthDashboard(viewModel: PetHealthViewModel) {
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 } else {
-                    todos.forEach { todo ->
-                        TodoRow(
-                            todo = todo,
-                            onToggle = { viewModel.toggleTodo(todo.id) },
-                            onEdit = { editTodo = todo },
-                            onDelete = { deleteTodo = todo },
-                        )
+                    // 按日期分组：今天 / 明天 / 未来 / 历史
+                    val today = viewModel.today()
+                    val grouped = todos.groupBy { todo ->
+                        val days = runCatching {
+                            java.time.temporal.ChronoUnit.DAYS.between(
+                                java.time.LocalDate.parse(today),
+                                java.time.LocalDate.parse(todo.date),
+                            )
+                        }.getOrDefault(0L).toInt()
+                        when {
+                            days == 0 -> "今天"
+                            days == 1 -> "明天"
+                            days > 1 -> "未来"
+                            else -> "历史"
+                        }
+                    }
+                    listOf("今天", "明天", "未来", "历史").forEach { group ->
+                        val groupTodos = grouped[group] ?: return@forEach
+                        if (groupTodos.isNotEmpty()) {
+                            Text(
+                                group,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = PetHealthBlueDark,
+                            )
+                            groupTodos.forEach { todo ->
+                                TodoRow(
+                                    todo = todo,
+                                    onToggle = { viewModel.toggleTodo(todo.id) },
+                                    onEdit = { editTodo = todo },
+                                    onDelete = { deleteTodo = todo },
+                                )
+                            }
+                        }
                     }
                 }
                 if (daysIdle > 0) {
@@ -520,7 +544,7 @@ private fun DeleteTodoDialog(
     }
 }
 
-/** 日期选择行：显示日期文本，点击弹出 Material3 DatePicker。 */
+/** 日期选择行：显示日期文本，点击弹出中文日期选择器。 */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun DateField(date: String, onDateChange: (String) -> Unit) {
@@ -539,32 +563,120 @@ private fun DateField(date: String, onDateChange: (String) -> Unit) {
         Text("选择日期", fontSize = 12.sp, color = PetHealthBlueDark)
     }
     if (showPicker) {
-        val initialMillis = runCatching {
-            java.time.LocalDate.parse(date)
-                .atStartOfDay(java.time.ZoneId.systemDefault())
-                .toInstant()
-                .toEpochMilli()
-        }.getOrDefault(System.currentTimeMillis())
-        val state = rememberDatePickerState(initialSelectedDateMillis = initialMillis)
-        DatePickerDialog(
-            onDismissRequest = { showPicker = false },
-            confirmButton = {
-                TextButton(onClick = {
-                    state.selectedDateMillis?.let { millis ->
-                        val local = java.time.Instant.ofEpochMilli(millis)
-                            .atZone(java.time.ZoneId.systemDefault())
-                            .toLocalDate()
-                            .toString()
-                        onDateChange(local)
+        SimpleDatePickerDialog(
+            initialDate = runCatching { java.time.LocalDate.parse(date) }.getOrDefault(java.time.LocalDate.now()),
+            onDismiss = { showPicker = false },
+            onConfirm = { onDateChange(it.toString()); showPicker = false },
+        )
+    }
+}
+
+/** 中文年月日选择器（自绘，不依赖系统 locale）。 */
+@Composable
+private fun SimpleDatePickerDialog(
+    initialDate: java.time.LocalDate,
+    onDismiss: () -> Unit,
+    onConfirm: (java.time.LocalDate) -> Unit,
+) {
+    val now = java.time.LocalDate.now()
+    var year by remember { mutableStateOf(initialDate.year) }
+    var month by remember { mutableStateOf(initialDate.monthValue) } // 1-12
+    var day by remember { mutableStateOf(initialDate.dayOfMonth) }
+
+    val monthNames = listOf("一月", "二月", "三月", "四月", "五月", "六月", "七月", "八月", "九月", "十月", "十一月", "十二月")
+
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surface) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Text("选择日期", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+
+                // 年月选择（上一年/下一年 + 月份左右切换）
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("‹", modifier = Modifier.clickable { year -= 1 }, fontSize = 20.sp, color = PetHealthBlueDark)
+                    Spacer(Modifier.weight(1f))
+                    Text("$year 年", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.weight(1f))
+                    Text("›", modifier = Modifier.clickable { year += 1 }, fontSize = 20.sp, color = PetHealthBlueDark)
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("‹", modifier = Modifier.clickable {
+                        month = if (month == 1) { year -= 1; 12 } else month - 1
+                    }, fontSize = 20.sp, color = PetHealthBlueDark)
+                    Spacer(Modifier.weight(1f))
+                    Text(monthNames[month - 1], fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.weight(1f))
+                    Text("›", modifier = Modifier.clickable {
+                        month = if (month == 12) { year += 1; 1 } else month + 1
+                    }, fontSize = 20.sp, color = PetHealthBlueDark)
+                }
+
+                // 星期表头
+                Row(Modifier.fillMaxWidth()) {
+                    listOf("日", "一", "二", "三", "四", "五", "六").forEach { w ->
+                        Text(
+                            w,
+                            modifier = Modifier.weight(1f),
+                            textAlign = TextAlign.Center,
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
-                    showPicker = false
-                }) { Text("确定") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showPicker = false }) { Text("取消") }
-            },
-        ) {
-            DatePicker(state = state)
+                }
+                // 日期网格（从周日开始）
+                val firstDay = java.time.LocalDate.of(year, month, 1)
+                val daysInMonth = firstDay.lengthOfMonth()
+                val leading = firstDay.dayOfWeek.value % 7 // 周一=1→周日0；周日=7→0
+                val cells = List(leading) { 0 } + (1..daysInMonth)
+                cells.chunked(7).forEach { week ->
+                    Row(Modifier.fillMaxWidth()) {
+                        week.forEach { d ->
+                            if (d == 0) {
+                                Spacer(Modifier.weight(1f))
+                            } else {
+                                val isToday = d == now.dayOfMonth && month == now.monthValue && year == now.year
+                                val selected = d == day && month == initialDate.monthValue && year == initialDate.year
+                                Surface(
+                                    onClick = { day = d },
+                                    shape = RoundedCornerShape(50),
+                                    color = when {
+                                        selected -> PetHealthBlue
+                                        isToday -> PetHealthBlue.copy(alpha = 0.15f)
+                                        else -> androidx.compose.ui.graphics.Color.Transparent
+                                    },
+                                    contentColor = when {
+                                        selected -> androidx.compose.ui.graphics.Color.White
+                                        else -> MaterialTheme.colorScheme.onSurface
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Text("$d", modifier = Modifier.padding(vertical = 8.dp), fontSize = 13.sp)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    VoxelButton(text = "取消", onClick = onDismiss, compact = true, style = VoxelButtonStyle.NEUTRAL)
+                    VoxelButton(
+                        text = "确定",
+                        onClick = {
+                            onConfirm(
+                                runCatching { java.time.LocalDate.of(year, month, day) }
+                                    .getOrDefault(initialDate),
+                            )
+                        },
+                        compact = true,
+                    )
+                }
+            }
         }
     }
 }
