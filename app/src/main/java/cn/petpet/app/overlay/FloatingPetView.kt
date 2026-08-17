@@ -7,13 +7,8 @@ import android.os.Handler
 import android.os.Looper
 import android.view.Gravity
 import android.view.View
-import android.view.inputmethod.EditorInfo
-import android.view.inputmethod.InputMethodManager
-import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.ImageView
-import android.widget.LinearLayout
-import android.widget.ScrollView
 import android.widget.TextView
 import cn.petpet.app.R
 
@@ -29,6 +24,9 @@ enum class FloatingMenuDirection {
  *
  * 三个动作围绕宠物排成半环，并从小猫中心依次滑出。菜单朝向由服务根据
  * 宠物距离屏幕四条边的远近决定，始终优先向屏幕内部展开。
+ *
+ * 聊天回复气泡同样按菜单方向逻辑：悬浮窗在屏幕左侧 → 气泡从右侧冒出；
+ * 悬浮窗在屏幕右侧 → 气泡从左侧冒出。显示 5 秒后自动隐藏。
  */
 class FloatingPetView(
     context: Context,
@@ -37,14 +35,11 @@ class FloatingPetView(
     private val onInteract: () -> Unit,
     private val onOpenApp: () -> Unit,
     private val onChatPanelRequested: () -> Unit,
-    private val onChatPanelVisibilityChanged: (Boolean) -> Unit,
     private val onChat: (String) -> Unit,
 ) : FrameLayout(context) {
     val petHandle = ImageView(context)
     private val handler = Handler(Looper.getMainLooper())
-    private val menuButtons = mutableListOf<TextView>()
-    private var chatPanel: LinearLayout? = null
-    private var replyView: TextView? = null
+    private var menuButtons = mutableListOf<TextView>()
     private var mainAvatarRes: Int = petAvatarRes
 
     var isMenuExpanded: Boolean = false
@@ -95,9 +90,7 @@ class FloatingPetView(
 
     override fun performClick(): Boolean {
         super.performClick()
-        if (isChatPanelVisible()) {
-            hideChatPanel()
-        } else if (isMenuExpanded) {
+        if (isMenuExpanded) {
             closeMenu()
         } else {
             openMenu()
@@ -114,125 +107,12 @@ class FloatingPetView(
         }
     }
 
-    // ── 聊天面板 ──
-
-    fun isChatPanelVisible(): Boolean = chatPanel?.visibility == View.VISIBLE
-
-    /** 显示聊天面板（悬浮窗内直接对话，不跳转应用）。 */
-    fun showChatPanel() {
-        if (chatPanel == null) buildChatPanel()
-        chatPanel?.visibility = View.VISIBLE
-        onChatPanelVisibilityChanged(true)
-    }
-
-    fun hideChatPanel() {
-        chatPanel?.visibility = View.GONE
-        onChatPanelVisibilityChanged(false)
-        hideKeyboard()
-    }
-
     /** 设置思考状态（true=thinking 表情，false=恢复主头像）。 */
     fun setThinking(thinking: Boolean, thinkingRes: Int?) {
         if (thinking) {
             if (thinkingRes != null && thinkingRes != 0) petHandle.setImageResource(thinkingRes)
         } else {
             petHandle.setImageResource(mainAvatarRes)
-        }
-    }
-
-    /** 显示宠物回复气泡文本。 */
-    fun showReply(text: String) {
-        val view = replyView ?: return
-        view.text = text
-        view.visibility = View.VISIBLE
-        handler.removeCallbacksAndMessages(null)
-        handler.postDelayed({ view.visibility = View.GONE }, 8000L)
-    }
-
-    private fun buildChatPanel() {
-        val panel = LinearLayout(context).apply {
-            orientation = LinearLayout.VERTICAL
-            setBackgroundColor(Color.argb(244, 255, 255, 255))
-            elevation = dp(8).toFloat()
-            visibility = View.GONE
-        }
-        val panelParams = LayoutParams(dp(220), dp(150)).apply {
-            // 面板固定：窗口左上角开始、宠物下方。Service 显示面板时会放大窗口
-            // 到恰好容纳面板+宠物，因此面板完全在窗口内可点击。
-            leftMargin = 0
-            topMargin = dp(PET_SIZE_DP + 8)
-        }
-
-        // 回复气泡区
-        val scroll = ScrollView(context).apply {
-            isVerticalScrollBarEnabled = false
-        }
-        replyView = TextView(context).apply {
-            textSize = 13f
-            setTextColor(Color.DKGRAY)
-            setPadding(dp(4), dp(2), dp(4), dp(2))
-        }
-        scroll.addView(replyView)
-        panel.addView(scroll, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, 0, 1f))
-
-        // 输入行：EditText + 发送按钮
-        val inputRow = LinearLayout(context).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-        }
-        val input = EditText(context)
-        input.apply {
-            hint = "和小宠物说点什么…"
-            textSize = 13f
-            isSingleLine = true
-            setBackgroundColor(Color.TRANSPARENT)
-            imeOptions = EditorInfo.IME_ACTION_SEND
-        }
-        input.setOnEditorActionListener { _, actionId, _ ->
-            if (actionId == EditorInfo.IME_ACTION_SEND) {
-                sendFrom(input)
-                true
-            } else false
-        }
-        val sendBtn = TextView(context).apply {
-            text = "发送"
-            textSize = 13f
-            gravity = Gravity.CENTER
-            setTextColor(Color.WHITE)
-            background = GradientDrawable().apply {
-                shape = GradientDrawable.RECTANGLE
-                cornerRadius = dp(10).toFloat()
-                setColor(Color.parseColor("#38BDF8"))
-            }
-            isClickable = true
-            setOnClickListener { sendFrom(input) }
-        }
-        inputRow.addView(input, LinearLayout.LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f))
-        inputRow.addView(sendBtn, LinearLayout.LayoutParams(dp(52), dp(34)).apply {
-            leftMargin = dp(6)
-        })
-        panel.addView(inputRow)
-
-        addView(panel, panelParams)
-        chatPanel = panel
-    }
-
-    private fun sendFrom(input: EditText) {
-        val text = input.text.toString().trim()
-        if (text.isEmpty()) return
-        input.setText("")
-        replyView?.let {
-            it.text = "思考中…"
-            it.visibility = View.VISIBLE
-        }
-        hideKeyboard()
-        onChat(text)
-    }
-
-    private fun hideKeyboard() {
-        runCatching {
-            val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-            imm.hideSoftInputFromWindow(windowToken, 0)
         }
     }
 
@@ -265,6 +145,7 @@ class FloatingPetView(
             leftMargin = handleOffsetX
             topMargin = handleOffsetY
         }
+
         positionMenuButtons(direction)
         requestLayout()
     }
@@ -394,7 +275,5 @@ class FloatingPetView(
         const val PET_SIZE_DP = 82
         const val MENU_BUTTON_SIZE_DP = 48
         const val EXPANDED_SIZE_DP = 230
-        const val CHAT_PANEL_WIDTH_DP = 220
-        const val CHAT_PANEL_HEIGHT_DP = 150
     }
 }

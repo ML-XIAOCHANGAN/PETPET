@@ -7,12 +7,15 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
+import android.graphics.Color
 import android.graphics.PixelFormat
 import android.os.IBinder
 import android.util.Log
 import android.view.Gravity
 import android.view.MotionEvent
+import android.view.View
 import android.view.WindowManager
+import android.widget.TextView
 import androidx.core.app.NotificationCompat
 import cn.petpet.app.MainActivity
 import cn.petpet.app.R
@@ -36,8 +39,6 @@ class FloatingPetService : Service() {
     private var notificationChannelReady = false
     private var floatingView: FloatingPetView? = null
     private var layoutParams: WindowManager.LayoutParams? = null
-    private var chatPanelBaseX: Int = 0
-    private var chatPanelBaseY: Int = 0
     private val chatScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     override fun onCreate() {
@@ -105,6 +106,18 @@ class FloatingPetService : Service() {
         }
         floatingView = null
         layoutParams = null
+        chatDialogView?.let { dialog ->
+            runCatching { windowManager?.removeView(dialog) }
+                .onFailure { Log.w(TAG, "移除悬浮聊天对话框失败", it) }
+        }
+        chatDialogView = null
+        chatDialogParams = null
+        bubbleView?.let { bubble ->
+            runCatching { windowManager?.removeView(bubble) }
+                .onFailure { Log.w(TAG, "移除回复气泡失败", it) }
+        }
+        bubbleView = null
+        bubbleParams = null
         chatScope.cancel()
         FloatingPetController.setRunning(false)
         super.onDestroy()
@@ -164,41 +177,13 @@ class FloatingPetService : Service() {
                     .onFailure { Log.e(TAG, "记录悬浮小猫互动失败", it) }
             },
             onOpenApp = { openMainScreen(openChat = false) },
-            // 💬 点击：应用在前台 → 跳转 MyPet 聊天；在后台 → 悬浮窗内弹聊天面板
+            // 💬 点击：应用在前台 → 跳转 MyPet 聊天；其他情况 → 居中偏下的独立聊天对话框
             onChatPanelRequested = {
                 if (isAppInForeground()) {
                     openMainScreen(openChat = true)
                 } else {
-                    view.showChatPanel()
+                    showChatDialog(view, petBreedId ?: "")
                 }
-            },
-            // 聊天面板显示时放大窗口（面板超出宠物小窗口的部分可点击），隐藏时恢复
-            onChatPanelVisibilityChanged = { shown ->
-                val density = resources.displayMetrics.density
-                val collapsed = (FloatingPetView.PET_SIZE_DP * density).toInt()
-                val panelW = (FloatingPetView.CHAT_PANEL_WIDTH_DP * density).toInt()
-                val panelH = (FloatingPetView.CHAT_PANEL_HEIGHT_DP * density).toInt()
-                if (shown) {
-                    // 窗口以宠物原位置为右下锚点向左上扩展（与菜单 LEFT 展开一致）
-                    chatPanelBaseX = params.x
-                    chatPanelBaseY = params.y
-                    val petPx = (FloatingPetView.PET_SIZE_DP * density).toInt()
-                    val newW = maxOf(collapsed, panelW + (8 * density).toInt())
-                    val newH = maxOf(collapsed, panelH + petPx + (16 * density).toInt())
-                    params.x = (params.x + collapsed - newW).coerceAtLeast(0)
-                    params.y = (params.y + collapsed - newH).coerceAtLeast(0)
-                    params.width = newW
-                    params.height = newH
-                    // 面板需要输入：移除 NOT_FOCUSABLE 让输入框可聚焦、键盘可弹出
-                    params.flags = params.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()
-                } else {
-                    params.x = chatPanelBaseX
-                    params.y = chatPanelBaseY
-                    params.width = collapsed
-                    params.height = collapsed
-                    params.flags = params.flags or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
-                }
-                runCatching { windowManager.updateViewLayout(view, params) }
             },
             onChat = { message -> startFloatingChat(view, petBreedId ?: "", message) },
         )
@@ -408,8 +393,10 @@ class FloatingPetService : Service() {
             } else {
                 localReply(message, isDog)
             }
-            // 回复气泡 + 情绪表情（短暂展示后恢复主头像）
-            view.showReply(reply)
+            // 回复气泡（独立小窗口，方向跟随悬浮窗位置）+ 情绪表情
+            showReplyBubble(reply, bubbleDirectionForWindow())
+            // 同步显示在聊天对话框回复区（若对话框还开着）
+            chatReply?.let { it.text = reply }
             val emotion = analyzeEmotion(reply)
             if (emotion != null) {
                 val res = cn.petpet.app.ui.components.PetExpressionLibrary.expressionRes(breedId, emotion)
@@ -421,6 +408,294 @@ class FloatingPetService : Service() {
             }
         }
     }
+
+    /** 根据悬浮窗窗口位置决定气泡弹出方向（与菜单方向逻辑一致）。 */
+    private fun bubbleDirectionForWindow(): FloatingMenuDirection {
+        val density = resources.displayMetrics.density
+        val collapsed = (FloatingPetView.PET_SIZE_DP * density).toInt()
+        val windowLeft = layoutParams?.x ?: 0
+        val screenWidth = resources.displayMetrics.widthPixels
+        // 窗口在屏幕左半 → 气泡从右侧冒出；右半 → 气泡从左侧冒出
+        return if (windowLeft + collapsed / 2 < screenWidth / 2) {
+            FloatingMenuDirection.RIGHT
+        } else {
+            FloatingMenuDirection.LEFT
+        }
+    }
+
+    // ── 回复气泡（独立小窗口，贴近宠物边缘，5 秒后自动移除） ──
+
+    private var bubbleView: TextView? = null
+    private var bubbleParams: WindowManager.LayoutParams? = null
+
+    private fun showReplyBubble(text: String, direction: FloatingMenuDirection) {
+        val windowManager = windowManager ?: return
+        val density = resources.displayMetrics.density
+        val collapsed = (FloatingPetView.PET_SIZE_DP * density).toInt()
+
+        if (bubbleView == null) {
+            val bubble = TextView(this).apply {
+                textSize = 13f
+                setTextColor(Color.DKGRAY)
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(dp3(12), dp3(8), dp3(12), dp3(8))
+                setBackgroundResource(R.drawable.bg_chat_bubble)
+                elevation = dp3(4).toFloat()
+            }
+            val params = WindowManager.LayoutParams(
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                PixelFormat.TRANSLUCENT,
+            ).apply {
+                gravity = Gravity.TOP or Gravity.START
+            }
+            bubbleView = bubble
+            bubbleParams = params
+        }
+
+        val bubble = bubbleView ?: return
+        val params = bubbleParams ?: return
+        bubble.animate().cancel()
+        bubble.text = text
+        bubble.measure(0, 0)
+        val bubbleW = bubble.measuredWidth
+        val bubbleH = bubble.measuredHeight
+
+        // 气泡位置：水平贴近宠物边缘（左/右方向），垂直居中于宠物
+        val windowLeft = layoutParams?.x ?: 0
+        val windowTop = layoutParams?.y ?: 0
+        when (direction) {
+            FloatingMenuDirection.LEFT -> {
+                params.x = windowLeft - bubbleW - dp3(6)
+            }
+            else -> {
+                params.x = windowLeft + collapsed + dp3(6)
+            }
+        }
+        params.y = windowTop + collapsed / 2 - bubbleH / 2
+
+        // 越界保护：气泡不超出屏幕
+        val screenWidth = resources.displayMetrics.widthPixels
+        val screenHeight = resources.displayMetrics.heightPixels
+        params.x = params.x.coerceIn(dp3(4), screenWidth - bubbleW - dp3(4))
+        params.y = params.y.coerceIn(dp3(4), screenHeight - bubbleH - dp3(4))
+
+        // 展开动画：锚定宠物一侧横向展开。
+        // 悬浮窗在左 → 气泡在右、从左往右展开（pivotX=0 锚左缘）；
+        // 悬浮窗在右 → 气泡在左、从右往左展开（pivotX=1 锚右缘）。
+        val expandFromLeft = direction != FloatingMenuDirection.LEFT
+        bubble.pivotX = if (expandFromLeft) 0f else bubbleW.toFloat()
+        bubble.pivotY = bubbleH / 2f
+        bubble.scaleX = 0.05f
+        bubble.alpha = 0f
+
+        runCatching {
+            if (bubble.parent == null) {
+                windowManager.addView(bubble, params)
+            } else {
+                windowManager.updateViewLayout(bubble, params)
+            }
+        }.onFailure { Log.w(TAG, "更新回复气泡失败", it) }
+
+        // 展开动画（0.3 秒横向展开）
+        bubble.animate()
+            .scaleX(1f)
+            .alpha(1f)
+            .setDuration(300L)
+            .start()
+
+        chatScope.launch {
+            delay(4500)
+            // 收缩动画后移除（统一向锚点收拢，pivot 已固定）
+            bubble.animate()
+                .scaleX(0.05f)
+                .alpha(0f)
+                .setDuration(200L)
+                .start()
+            delay(300)
+            runCatching { windowManager.removeView(bubble) }
+                .onFailure { /* 可能已移除 */ }
+        }
+    }
+
+    private fun dp3(value: Int): Int = (value * resources.displayMetrics.density).toInt()
+
+    // ── 独立聊天对话框（居中偏下，与屏幕底部保持距离） ──
+
+    private var chatDialogView: android.widget.LinearLayout? = null
+    private var chatDialogParams: WindowManager.LayoutParams? = null
+    private var chatInput: android.widget.EditText? = null
+    private var chatReply: android.widget.TextView? = null
+    private var chatPetBreedId: String = ""
+    private var chatPetView: FloatingPetView? = null
+
+    private fun showChatDialog(view: FloatingPetView, breedId: String) {
+        val windowManager = windowManager ?: return
+        chatPetView = view
+        chatPetBreedId = breedId
+
+        if (chatDialogView == null) buildChatDialog()
+        val dialog = chatDialogView ?: return
+        if (dialog.parent != null) {
+            // 已显示 → 直接带回前台
+            runCatching { windowManager.updateViewLayout(dialog, chatDialogParams) }
+            return
+        }
+        runCatching {
+            windowManager.addView(dialog, chatDialogParams)
+        }.onFailure { Log.e(TAG, "挂载悬浮聊天对话框失败", it) }
+    }
+
+    private fun hideChatDialog() {
+        val windowManager = windowManager ?: return
+        val dialog = chatDialogView ?: return
+        runCatching { windowManager.removeView(dialog) }
+            .onFailure { Log.w(TAG, "移除悬浮聊天对话框失败", it) }
+        hideKeyboardFrom(dialog)
+    }
+
+    private fun buildChatDialog() {
+        val density = resources.displayMetrics.density
+        val screenWidth = resources.displayMetrics.widthPixels
+        val screenHeight = resources.displayMetrics.heightPixels
+        val dialogW = (300 * density).toInt()
+
+        val petName = runCatching { PetPetRepository(this).snapshot().pet?.name }
+            .getOrNull()?.ifEmpty { "宠物" } ?: "宠物"
+
+        val container = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            setBackgroundColor(Color.argb(250, 255, 255, 255))
+            elevation = dp2(10).toFloat()
+            setPadding(dp2(14), dp2(12), dp2(14), dp2(12))
+            // 圆角
+            background = android.graphics.drawable.GradientDrawable().apply {
+                shape = android.graphics.drawable.GradientDrawable.RECTANGLE
+                cornerRadius = dp2(18).toFloat()
+                setColor(Color.argb(250, 255, 255, 255))
+            }
+        }
+
+        // 标题行：宠物名 + 关闭按钮
+        val titleRow = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        val title = android.widget.TextView(this).apply {
+            text = "$petName 正在和你聊天"
+            textSize = 15f
+            setTextColor(Color.DKGRAY)
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
+        }
+        val closeBtn = android.widget.TextView(this).apply {
+            text = "✕"
+            textSize = 16f
+            gravity = Gravity.CENTER
+            setTextColor(Color.GRAY)
+            isClickable = true
+            setOnClickListener { hideChatDialog() }
+        }
+        titleRow.addView(title, android.widget.LinearLayout.LayoutParams(0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        titleRow.addView(closeBtn, android.widget.LinearLayout.LayoutParams(dp2(32), dp2(32)))
+        container.addView(titleRow)
+
+        // 回复区
+        chatReply = android.widget.TextView(this).apply {
+            textSize = 14f
+            setTextColor(Color.DKGRAY)
+            setPadding(0, dp2(6), 0, dp2(6))
+            minHeight = dp2(28)
+            text = "和小宠物说点什么吧～"
+        }
+        container.addView(chatReply, android.widget.LinearLayout.LayoutParams(
+            android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+            android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+        ))
+
+        // 输入行
+        val inputRow = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        val input = android.widget.EditText(this)
+        input.apply {
+            hint = "和小宠物说点什么…"
+            textSize = 14f
+            isSingleLine = true
+            setBackgroundColor(Color.TRANSPARENT)
+            imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_SEND
+        }
+        input.setOnEditorActionListener { _, actionId, _ ->
+            if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_SEND) {
+                sendFromDialog(input)
+                true
+            } else false
+        }
+        val sendBtn = android.widget.TextView(this).apply {
+            text = "发送"
+            textSize = 14f
+            gravity = Gravity.CENTER
+            setTextColor(Color.WHITE)
+            background = android.graphics.drawable.GradientDrawable().apply {
+                shape = android.graphics.drawable.GradientDrawable.RECTANGLE
+                cornerRadius = dp2(10).toFloat()
+                setColor(Color.parseColor("#38BDF8"))
+            }
+            isClickable = true
+            setOnClickListener { sendFromDialog(input) }
+        }
+        inputRow.addView(input, android.widget.LinearLayout.LayoutParams(0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        inputRow.addView(sendBtn, android.widget.LinearLayout.LayoutParams(dp2(56), dp2(36)).apply {
+            leftMargin = dp2(8)
+        })
+        container.addView(inputRow)
+
+        chatInput = input
+
+        // 窗口参数：水平居中，垂直位置在屏幕 62% 处（居中偏下、与底部保持距离）
+        chatDialogParams = WindowManager.LayoutParams(
+            dialogW,
+            android.view.ViewGroup.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            PixelFormat.TRANSLUCENT,
+        ).apply {
+            gravity = Gravity.TOP or Gravity.START
+            x = (screenWidth - dialogW) / 2
+            y = (screenHeight * 0.62f).toInt()
+        }
+
+        chatDialogView = container
+    }
+
+    private fun sendFromDialog(input: android.widget.EditText) {
+        val text = input.text.toString().trim()
+        if (text.isEmpty()) return
+        input.setText("")
+        hideKeyboardFrom(chatDialogView)
+        chatReply?.let {
+            it.text = "思考中…"
+        }
+        val view = chatPetView
+        val breedId = chatPetBreedId
+        if (view != null) {
+            startFloatingChat(view, breedId, text)
+        }
+    }
+
+    private fun hideKeyboardFrom(anyView: View?) {
+        anyView?.let { v ->
+            runCatching {
+                val imm = getSystemService(android.content.Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
+                imm.hideSoftInputFromWindow(v.windowToken, 0)
+            }
+        }
+    }
+
+    private fun dp2(value: Int): Int = (value * resources.displayMetrics.density).toInt()
 
     /** 离线本地规则回复（与主界面 replyFor 同源）。 */
     private fun localReply(message: String, isDog: Boolean): String {
