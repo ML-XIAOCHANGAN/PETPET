@@ -5,6 +5,7 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -19,10 +20,17 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -72,6 +80,8 @@ fun HealthDashboard(viewModel: PetHealthViewModel) {
 
     val redCount = openAlerts.count { it.priority == "红" }
     var showAddTodo by remember { mutableStateOf(false) }
+    var editTodo by remember { mutableStateOf<HealthTodo?>(null) }
+    var deleteTodo by remember { mutableStateOf<HealthTodo?>(null) }
 
     Column(
         modifier = Modifier
@@ -161,7 +171,12 @@ fun HealthDashboard(viewModel: PetHealthViewModel) {
                     )
                 } else {
                     todos.forEach { todo ->
-                        TodoRow(todo) { viewModel.toggleTodo(todo.id) }
+                        TodoRow(
+                            todo = todo,
+                            onToggle = { viewModel.toggleTodo(todo.id) },
+                            onEdit = { editTodo = todo },
+                            onDelete = { deleteTodo = todo },
+                        )
                     }
                 }
                 if (daysIdle > 0) {
@@ -177,6 +192,20 @@ fun HealthDashboard(viewModel: PetHealthViewModel) {
 
         if (showAddTodo) {
             AddTodoDialog(viewModel) { showAddTodo = false }
+        }
+        editTodo?.let { todo ->
+            EditTodoDialog(
+                viewModel = viewModel,
+                todo = todo,
+                onDismiss = { editTodo = null },
+            )
+        }
+        deleteTodo?.let { todo ->
+            DeleteTodoDialog(
+                viewModel = viewModel,
+                todo = todo,
+                onDismiss = { deleteTodo = null },
+            )
         }
 
         // 异常提醒（红色优先）
@@ -302,16 +331,23 @@ fun AlertRow(alert: HealthAlert, onResolve: () -> Unit) {
 }
 
 /**
- * 待办事项行：左侧勾选框，勾选后文字透明度渐变到 70% 并加删除线。
+ * 待办事项行：左侧勾选框，勾选后文字透明度渐变到 70% 并加删除线；
+ * 右侧 ⋮ 菜单（编辑 / 删除）。
  */
 @Composable
-private fun TodoRow(todo: HealthTodo, onToggle: () -> Unit) {
+private fun TodoRow(
+    todo: HealthTodo,
+    onToggle: () -> Unit,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit,
+) {
     // 勾选完成 → 透明度从 100% 渐变到 70%（动画过渡）
     val textAlpha by animateFloatAsState(
         targetValue = if (todo.done) 0.70f else 1f,
         animationSpec = tween(durationMillis = 500, easing = FastOutSlowInEasing),
         label = "待办完成透明度",
     )
+    var menuExpanded by remember { mutableStateOf(false) }
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -322,22 +358,58 @@ private fun TodoRow(todo: HealthTodo, onToggle: () -> Unit) {
             checked = todo.done,
             onCheckedChange = { onToggle() },
         )
-        Text(
-            todo.text,
-            fontSize = 13.sp,
-            modifier = Modifier
-                .weight(1f)
-                .graphicsLayer { alpha = textAlpha },
-            textDecoration = if (todo.done) TextDecoration.LineThrough else TextDecoration.None,
-            color = if (todo.done) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
-        )
+        Column(Modifier.weight(1f)) {
+            Text(
+                todo.text,
+                fontSize = 13.sp,
+                modifier = Modifier.graphicsLayer { alpha = textAlpha },
+                textDecoration = if (todo.done) TextDecoration.LineThrough else TextDecoration.None,
+                color = if (todo.done) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
+            )
+            Text(
+                todo.date,
+                fontSize = 10.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+            )
+        }
+        // ⋮ 菜单
+        Box {
+            Text(
+                "⋮",
+                modifier = Modifier
+                    .clickable { menuExpanded = true }
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                fontSize = 18.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            DropdownMenu(
+                expanded = menuExpanded,
+                onDismissRequest = { menuExpanded = false },
+            ) {
+                DropdownMenuItem(
+                    text = { Text("编辑", fontSize = 13.sp) },
+                    onClick = {
+                        menuExpanded = false
+                        onEdit()
+                    },
+                )
+                DropdownMenuItem(
+                    text = { Text("删除", fontSize = 13.sp, color = PetHealthRed) },
+                    onClick = {
+                        menuExpanded = false
+                        onDelete()
+                    },
+                )
+            }
+        }
     }
 }
 
-/** 添加待办弹窗。 */
+/** 添加待办弹窗（含日期选择，默认今天）。 */
 @Composable
 private fun AddTodoDialog(viewModel: PetHealthViewModel, onDismiss: () -> Unit) {
     var text by remember { mutableStateOf("") }
+    var date by remember { mutableStateOf(viewModel.today()) }
     Dialog(onDismissRequest = onDismiss) {
         Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surface) {
             Column(
@@ -346,19 +418,20 @@ private fun AddTodoDialog(viewModel: PetHealthViewModel, onDismiss: () -> Unit) 
                     .padding(20.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Text("添加今日待办", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                Text("添加待办", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                 OutlinedTextField(
                     value = text, onValueChange = { if (it.length <= 30) text = it },
                     label = { Text("待办内容（如：喂食、散步 30 分钟）*") },
                     modifier = Modifier.fillMaxWidth(), singleLine = true,
                 )
+                DateField(date = date, onDateChange = { date = it })
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     VoxelButton(text = "取消", onClick = onDismiss, compact = true, style = VoxelButtonStyle.NEUTRAL)
                     VoxelButton(
                         text = "添加",
                         onClick = {
                             if (text.isNotBlank()) {
-                                viewModel.addTodo(text)
+                                viewModel.addTodo(text, date)
                                 onDismiss()
                             }
                         },
@@ -367,6 +440,131 @@ private fun AddTodoDialog(viewModel: PetHealthViewModel, onDismiss: () -> Unit) 
                     )
                 }
             }
+        }
+    }
+}
+
+/** 编辑待办弹窗（文本 + 日期）。 */
+@Composable
+private fun EditTodoDialog(
+    viewModel: PetHealthViewModel,
+    todo: HealthTodo,
+    onDismiss: () -> Unit,
+) {
+    var text by remember { mutableStateOf(todo.text) }
+    var date by remember { mutableStateOf(todo.date) }
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surface) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Text("编辑待办", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                OutlinedTextField(
+                    value = text, onValueChange = { if (it.length <= 30) text = it },
+                    label = { Text("待办内容 *") },
+                    modifier = Modifier.fillMaxWidth(), singleLine = true,
+                )
+                DateField(date = date, onDateChange = { date = it })
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    VoxelButton(text = "取消", onClick = onDismiss, compact = true, style = VoxelButtonStyle.NEUTRAL)
+                    VoxelButton(
+                        text = "保存",
+                        onClick = {
+                            if (text.isNotBlank()) {
+                                viewModel.updateTodo(todo.id, text, date)
+                                onDismiss()
+                            }
+                        },
+                        compact = true,
+                        enabled = text.isNotBlank(),
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** 删除待办确认弹窗。 */
+@Composable
+private fun DeleteTodoDialog(
+    viewModel: PetHealthViewModel,
+    todo: HealthTodo,
+    onDismiss: () -> Unit,
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surface) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Text("删除待办", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                Text("确定删除「${todo.text}」吗？删除后不可恢复。", fontSize = 13.sp)
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    VoxelButton(text = "取消", onClick = onDismiss, compact = true, style = VoxelButtonStyle.NEUTRAL)
+                    VoxelButton(
+                        text = "删除",
+                        onClick = {
+                            viewModel.removeTodo(todo.id)
+                            onDismiss()
+                        },
+                        compact = true,
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** 日期选择行：显示日期文本，点击弹出 Material3 DatePicker。 */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DateField(date: String, onDateChange: (String) -> Unit) {
+    var showPicker by remember { mutableStateOf(false) }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { showPicker = true }
+            .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text("📅", fontSize = 16.sp)
+        Spacer(Modifier.width(8.dp))
+        Text(date, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+        Spacer(Modifier.weight(1f))
+        Text("选择日期", fontSize = 12.sp, color = PetHealthBlueDark)
+    }
+    if (showPicker) {
+        val initialMillis = runCatching {
+            java.time.LocalDate.parse(date)
+                .atStartOfDay(java.time.ZoneId.systemDefault())
+                .toInstant()
+                .toEpochMilli()
+        }.getOrDefault(System.currentTimeMillis())
+        val state = rememberDatePickerState(initialSelectedDateMillis = initialMillis)
+        DatePickerDialog(
+            onDismissRequest = { showPicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    state.selectedDateMillis?.let { millis ->
+                        val local = java.time.Instant.ofEpochMilli(millis)
+                            .atZone(java.time.ZoneId.systemDefault())
+                            .toLocalDate()
+                            .toString()
+                        onDateChange(local)
+                    }
+                    showPicker = false
+                }) { Text("确定") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showPicker = false }) { Text("取消") }
+            },
+        ) {
+            DatePicker(state = state)
         }
     }
 }

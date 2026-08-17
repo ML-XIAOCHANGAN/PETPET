@@ -331,12 +331,17 @@ class PetHealthViewModel(application: Application) : AndroidViewModel(applicatio
     fun todayTodos(pet: HealthPetProfile): List<HealthTodo> =
         _state.value.data.todos.filter { it.petId == pet.id }
 
-    fun addTodo(text: String) {
+    fun addTodo(text: String, date: String = repository.today()) {
         val petId = _state.value.currentPetId ?: return
         if (text.isBlank()) return
         viewModelScope.launch {
-            repository.addTodo(petId, text)
+            repository.addTodo(petId, text, date)
         }
+    }
+
+    fun updateTodo(todoId: Long, text: String, date: String) {
+        if (text.isBlank()) return
+        viewModelScope.launch { repository.updateTodo(todoId, text, date) }
     }
 
     fun toggleTodo(todoId: Long) {

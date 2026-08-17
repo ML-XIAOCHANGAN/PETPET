@@ -199,7 +199,7 @@ class PetHealthRepository(context: Context) {
 
     // ---- 待办事项（用户自建） ----
 
-    suspend fun addTodo(petId: String, text: String) {
+    suspend fun addTodo(petId: String, text: String, date: String = today()) {
         if (text.isBlank()) return
         dataStore.edit { prefs ->
             val current = PetHealthJson.decodeTodos(prefs[KEY_TODOS])
@@ -208,8 +208,18 @@ class PetHealthRepository(context: Context) {
                     id = System.currentTimeMillis(),
                     petId = petId,
                     text = text.trim(),
-                    date = today(),
+                    date = date,
                 ),
+            )
+        }
+    }
+
+    suspend fun updateTodo(todoId: Long, text: String, date: String) {
+        if (text.isBlank()) return
+        dataStore.edit { prefs ->
+            val current = PetHealthJson.decodeTodos(prefs[KEY_TODOS])
+            prefs[KEY_TODOS] = PetHealthJson.encodeTodos(
+                current.map { if (it.id == todoId) it.copy(text = text.trim(), date = date) else it },
             )
         }
     }
