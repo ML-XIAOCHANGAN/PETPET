@@ -90,6 +90,8 @@ class PetPetViewModel(application: Application) : AndroidViewModel(application) 
             preferencesRepository.chatApiKeyFlow.collect { apiKey ->
                 _state.update { it.copy(chatApiKey = apiKey) }
             }
+        }
+        viewModelScope.launch {
             preferencesRepository.petSoundEnabledFlow.collect { enabled ->
                 _state.update { it.copy(petSoundEnabled = enabled) }
             }
