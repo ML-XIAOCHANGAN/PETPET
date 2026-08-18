@@ -440,16 +440,6 @@ private fun PostCard(
     var comment by rememberSaveable(post.id) { mutableStateOf("") }
     // 三点菜单展开状态
     var menuExpanded by remember { mutableStateOf(false) }
-    var playing by rememberSaveable(post.id) { mutableStateOf(false) }
-    val startFrame = remember(post.id) { (post.id % communityFrames.size).toInt().absoluteValue }
-    var frameIndex by rememberSaveable(post.id) { mutableIntStateOf(startFrame) }
-
-    LaunchedEffect(playing) {
-        while (playing) {
-            delay(720)
-            frameIndex = (frameIndex + 1) % communityFrames.size
-        }
-    }
 
     Card(
         modifier = Modifier
@@ -544,18 +534,13 @@ private fun PostCard(
             }
 
             Spacer(Modifier.height(10.dp))
-            PostAnimation(
-                frameIndex = frameIndex,
-                playing = playing,
-                onPlayingChange = { playing = it },
-            )
 
             Column(
                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 Text(
-                    text = "${communityFrames[startFrame].emoticon}  ${post.text}",
+                    text = post.text,
                     style = MaterialTheme.typography.bodyLarge,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
@@ -694,75 +679,6 @@ private fun TrashPostCard(post: CommunityPost) {
             Text(
                 text = "🗑️",
                 style = MaterialTheme.typography.bodyLarge,
-            )
-        }
-    }
-}
-
-@Composable
-private fun PostAnimation(
-    frameIndex: Int,
-    playing: Boolean,
-    onPlayingChange: (Boolean) -> Unit,
-) {
-    val transition = rememberInfiniteTransition(label = "社区动态呼吸")
-    val breathing by transition.animateFloat(
-        initialValue = 0.98f,
-        targetValue = 1.035f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(900, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse,
-        ),
-        label = "社区图片呼吸比例",
-    )
-    val floating by transition.animateFloat(
-        initialValue = -3f,
-        targetValue = 3f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1200, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse,
-        ),
-        label = "社区图片浮动",
-    )
-
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(214.dp)
-            .clip(RoundedCornerShape(22.dp)),
-        shape = RoundedCornerShape(22.dp),
-        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.72f),
-    ) {
-        Box(Modifier.fillMaxSize()) {
-            AnimatedContent(
-                targetState = frameIndex,
-                modifier = Modifier.align(Alignment.Center),
-                transitionSpec = {
-                    (fadeIn(tween(180)) + scaleIn(tween(220), initialScale = 0.92f)) togetherWith
-                        (fadeOut(tween(150)) + scaleOut(tween(180), targetScale = 1.06f))
-                },
-                label = "社区动态图片切换",
-            ) { index ->
-                Image(
-                    painter = painterResource(communityFrames[index].image),
-                    contentDescription = "猫咪动态：${communityFrames[index].caption}",
-                    modifier = Modifier
-                        .size(214.dp)
-                        .graphicsLayer {
-                            scaleX = if (playing) breathing else 1f
-                            scaleY = if (playing) breathing else 1f
-                            translationY = if (playing) floating else 0f
-                        },
-                    contentScale = ContentScale.Fit,
-                )
-            }
-            RoundActionButton(
-                text = if (playing) "Ⅱ" else "▶",
-                description = if (playing) "暂停猫咪动画" else "播放猫咪动画",
-                onClick = { onPlayingChange(!playing) },
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(12.dp),
             )
         }
     }
