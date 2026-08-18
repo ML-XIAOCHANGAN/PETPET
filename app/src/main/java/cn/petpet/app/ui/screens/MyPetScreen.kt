@@ -61,6 +61,7 @@ import cn.petpet.app.domain.AffectionRules
 import cn.petpet.app.model.PetBreeds
 import cn.petpet.app.model.PetPetUiState
 import cn.petpet.app.model.PetType
+import cn.petpet.app.model.Temperament
 import cn.petpet.app.model.ChatProvider
 import cn.petpet.app.overlay.FloatingPetImageButton
 import cn.petpet.app.ui.components.InteractiveBlackCatAvatar
@@ -97,25 +98,39 @@ fun MyPetScreen(
     val keyboardController = LocalSoftwareKeyboardController.current
     var showSettings by remember { mutableStateOf(false) }
 
-    // ── 宠物点击音效：30% 随机叫声（触发后下次必不触发）+ 连点小猫哈气 ──
+    // ── 宠物点击音效：30% 随机叫声（触发后下次必不触发）+ 急躁性格 20 连击触发哈气 ──
     val context = LocalContext.current
-    var hissTrigger by remember { mutableIntStateOf(0) }
+    var hissActive by remember { mutableStateOf(false) }
     var lastTapTime by remember { mutableStateOf(0L) }
     var tapStreak by remember { mutableIntStateOf(0) }
     var soundLastTriggered by remember { mutableStateOf(false) }
     val isCat = PetBreeds.byId(pet.breedId)?.type == PetType.CAT
+    val temperament = pet.temperament
 
     fun handlePetSoundTap() {
         if (!state.petSoundEnabled) return
         val now = System.currentTimeMillis()
-        // 连续点击判定：800ms 内连续点击累积，猫连击 ≥3 次触发哈气
-        tapStreak = if (now - lastTapTime < 800) tapStreak + 1 else 1
+        // 连续点击判定：1 秒内连续点击累积
+        tapStreak = if (now - lastTapTime < 1000) tapStreak + 1 else 1
         lastTapTime = now
-        if (isCat && tapStreak >= 3) {
-            // 哈气：播放哈气音频 + 宠物图片切哈气表情（2.2 秒后恢复）
-            PetSoundPlayer.playHiss(context)
-            hissTrigger += 1
-            return
+        // 哈气前置条件：仅急躁性格（温和/沉稳永不产生哈气状态）
+        if (temperament == Temperament.IMPULSIVE) {
+            if (hissActive) {
+                // 哈气 5 秒期间点击 → 提示进入"哈吉咪脊背龙形态"
+                android.widget.Toast.makeText(
+                    context,
+                    "${pet.name}已经进入哈吉咪脊背龙形态！！！",
+                    android.widget.Toast.LENGTH_SHORT,
+                ).show()
+                return
+            }
+            if (isCat && tapStreak >= 20) {
+                // 20 连击：哈气音频 + 哈气表情保持 5 秒
+                PetSoundPlayer.playHiss(context)
+                hissActive = true
+                tapStreak = 0
+                return
+            }
         }
         // 普通叫声：30% 概率触发；若上次已触发，本次必定不触发
         val shouldTrigger = !soundLastTriggered && kotlin.random.Random.nextFloat() < 0.3f
@@ -127,11 +142,11 @@ fun MyPetScreen(
         }
     }
 
-    // 哈气表情 2.2 秒后自动恢复主头像
-    LaunchedEffect(hissTrigger) {
-        if (hissTrigger > 0) {
-            delay(2200)
-            hissTrigger = 0
+    // 哈气表情保持 5 秒后自动恢复主头像
+    LaunchedEffect(hissActive) {
+        if (hissActive) {
+            delay(5000)
+            hissActive = false
         }
     }
 
@@ -215,7 +230,7 @@ fun MyPetScreen(
                     handlePetSoundTap()
                 },
                 thinking = state.petTyping,
-                expression = if (hissTrigger > 0) "hiss" else state.petExpression,
+                expression = if (hissActive) "hiss" else state.petExpression,
                 breedId = pet.breedId,
                 modifier = Modifier
                     .align(Alignment.Center)

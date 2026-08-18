@@ -5,7 +5,25 @@ data class PetProfile(
     val affection: Int,
     val adoptedAt: String,
     val breedId: String = "black_cat",
+    /** 宠物性格（随机分配）：温和/沉稳无哈气，仅急躁可触发哈气。 */
+    val temperament: Temperament = Temperament.GENTLE,
 )
+
+/** 宠物性格：温和/沉稳不产生哈气状态，急躁是触发哈气的前置条件。 */
+enum class Temperament(val label: String, val emoji: String) {
+    GENTLE("温和", "🍃"),
+    CALM("沉稳", "🌙"),
+    IMPULSIVE("急躁", "🔥");
+
+    companion object {
+        /** 随机抽一个性格。 */
+        fun random(): Temperament = entries.random()
+
+        /** 按存储值解析（容错：未知值回退温和）。 */
+        fun byName(name: String?): Temperament =
+            entries.firstOrNull { it.name == name } ?: GENTLE
+    }
+}
 
 data class DailyProgress(
     val chatCount: Int = 0,

@@ -220,6 +220,11 @@ private fun MyProfileCard(pet: PetProfile) {
                         text = "好感度 ♡ ${pet.affection}",
                         style = MaterialTheme.typography.bodyMedium,
                     )
+                    Text(
+                        text = "性格 ${pet.temperament.emoji} ${pet.temperament.label}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
                     Text("领养于 ${pet.adoptedAt}", style = MaterialTheme.typography.bodySmall)
                 }
             }
