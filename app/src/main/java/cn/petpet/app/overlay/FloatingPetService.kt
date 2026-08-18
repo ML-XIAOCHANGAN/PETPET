@@ -41,6 +41,8 @@ class FloatingPetService : Service() {
     private var notificationChannelReady = false
     private var floatingView: FloatingPetView? = null
     private var layoutParams: WindowManager.LayoutParams? = null
+    /** 悬浮窗聊天进行中标志：防重入（连发消息不会并发请求）。 */
+    private var floatingChatInProgress: Boolean = false
     private val chatScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     override fun onCreate() {
@@ -552,6 +554,19 @@ class FloatingPetService : Service() {
      * 与主界面对话同源（ChatGatewayClient.directChat + 情绪分析），不跳转应用。
      */
     private fun startFloatingChat(view: FloatingPetView, breedId: String, message: String) {
+        // 防重入：上一轮聊天（思考→回复→表情）未结束时忽略新消息，避免并发请求与表情互相覆盖
+        if (floatingChatInProgress) return
+        floatingChatInProgress = true
+        chatScope.launch {
+            try {
+                runChatOnce(view, breedId, message)
+            } finally {
+                floatingChatInProgress = false
+            }
+        }
+    }
+
+    private suspend fun runChatOnce(view: FloatingPetView, breedId: String, message: String) {
         val isDog = PetBreeds.byId(breedId)?.type == cn.petpet.app.model.PetType.DOG
         val petName = runCatching { PetPetRepository(this).snapshot().pet?.name }.getOrNull() ?: ""
         val preferencesRepo = PetPetPreferencesRepository(this)
@@ -565,38 +580,36 @@ class FloatingPetService : Service() {
         val apiKey = runBlocking { preferencesRepo.chatApiKeyFlow.first() }
         val provider = ChatProvider.byId(providerId)
 
-        chatScope.launch {
-            val client = ChatGatewayClient()
-            val response = if (apiKey.isNotBlank()) {
-                client.directChat(
-                    provider = provider,
-                    apiKey = apiKey,
-                    message = message,
-                    history = emptyList(),
-                    petName = petName.ifEmpty { if (isDog) "小狗" else "小猫" },
-                    isDog = isDog,
-                )
-            } else {
-                null // 无 Key：走网关失败路径 → 本地规则
-            }
-            val reply = if (response != null && !response.degraded && response.reply.isNotBlank()) {
-                response.reply
-            } else {
-                localReply(message, isDog)
-            }
-            // 回复气泡（独立小窗口，方向跟随悬浮窗位置）+ 情绪表情
-            showReplyBubble(reply, bubbleDirectionForWindow())
-            // 同步显示在聊天对话框回复区（若对话框还开着）
-            chatReply?.let { it.text = reply }
-            val emotion = analyzeEmotion(reply)
-            if (emotion != null) {
-                val res = cn.petpet.app.ui.components.PetExpressionLibrary.expressionRes(breedId, emotion)
-                view.setPetImage(res)
-                delay(2800)
-                view.setPetImage(null)
-            } else {
-                view.setThinking(false, null)
-            }
+        val client = ChatGatewayClient()
+        val response = if (apiKey.isNotBlank()) {
+            client.directChat(
+                provider = provider,
+                apiKey = apiKey,
+                message = message,
+                history = emptyList(),
+                petName = petName.ifEmpty { if (isDog) "小狗" else "小猫" },
+                isDog = isDog,
+            )
+        } else {
+            null // 无 Key：走网关失败路径 → 本地规则
+        }
+        val reply = if (response != null && !response.degraded && response.reply.isNotBlank()) {
+            response.reply
+        } else {
+            localReply(message, isDog)
+        }
+        // 回复气泡（独立小窗口，方向跟随悬浮窗位置）+ 情绪表情
+        showReplyBubble(reply, bubbleDirectionForWindow())
+        // 同步显示在聊天对话框回复区（若对话框还开着）
+        chatReply?.let { it.text = reply }
+        val emotion = analyzeEmotion(reply)
+        if (emotion != null) {
+            val res = cn.petpet.app.ui.components.PetExpressionLibrary.expressionRes(breedId, emotion)
+            view.setPetImage(res)
+            delay(2800)
+            view.setPetImage(null)
+        } else {
+            view.setThinking(false, null)
         }
     }
 

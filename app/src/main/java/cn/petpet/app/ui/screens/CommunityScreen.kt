@@ -107,6 +107,8 @@ fun CommunityScreen(
     var postText by rememberSaveable { mutableStateOf("") }
     var composerExpanded by rememberSaveable { mutableStateOf(false) }
     var postImages by remember { mutableStateOf<List<String>>(emptyList()) }
+    // 发布防连点：发布进行中禁用按钮，避免重复发帖
+    var publishing by remember { mutableStateOf(false) }
     // 垃圾桶视图开关：true 显示已删除帖子的精简卡片（仅头像/名字/标题）
     var showTrash by rememberSaveable { mutableStateOf(false) }
     val isDog = PetBreeds.byId(pet.breedId)?.type == PetType.DOG
@@ -198,14 +200,18 @@ fun CommunityScreen(
                     expanded = composerExpanded,
                     text = postText,
                     images = postImages,
+                    publishing = publishing,
                     onImagesChange = { postImages = it },
                     onExpandedChange = { composerExpanded = it },
                     onTextChange = { if (it.length <= 500) postText = it },
                     onPublish = {
+                        if (publishing) return@CommunityComposer
+                        publishing = true
                         onCreatePost(postText, postImages)
                         postText = ""
                         postImages = emptyList()
                         composerExpanded = false
+                        publishing = false
                     },
                 )
             }
@@ -327,6 +333,7 @@ private fun CommunityComposer(
     expanded: Boolean,
     text: String,
     images: List<String>,
+    publishing: Boolean = false,
     onImagesChange: (List<String>) -> Unit,
     onExpandedChange: (Boolean) -> Unit,
     onTextChange: (String) -> Unit,
@@ -381,7 +388,7 @@ private fun CommunityComposer(
                     VoxelButton(
                         text = "发布",
                         onClick = onPublish,
-                        enabled = text.isNotBlank(),
+                        enabled = text.isNotBlank() && !publishing,
                         compact = true,
                     )
                 }
