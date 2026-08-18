@@ -59,7 +59,33 @@ class FloatingPetView(
         super.performClick()
         isMenuExpanded = !isMenuExpanded
         onPetClicked()
+        playTapBounce()
         return true
+    }
+
+    /** 点击弹动动画：缩小 → 放大 → 复原初始大小（窗口位置不变，仅视觉缩放）。 */
+    private fun playTapBounce() {
+        android.util.Log.i("FloatingPetView", "playTapBounce 弹动动画")
+        petHandle.animate().cancel()
+        val animator = android.animation.AnimatorSet()
+        animator.playSequentially(
+            android.animation.ObjectAnimator.ofPropertyValuesHolder(
+                petHandle,
+                android.animation.PropertyValuesHolder.ofFloat("scaleX", 0.82f),
+                android.animation.PropertyValuesHolder.ofFloat("scaleY", 0.82f),
+            ).apply { duration = 100 },
+            android.animation.ObjectAnimator.ofPropertyValuesHolder(
+                petHandle,
+                android.animation.PropertyValuesHolder.ofFloat("scaleX", 1.12f),
+                android.animation.PropertyValuesHolder.ofFloat("scaleY", 1.12f),
+            ).apply { duration = 150 },
+            android.animation.ObjectAnimator.ofPropertyValuesHolder(
+                petHandle,
+                android.animation.PropertyValuesHolder.ofFloat("scaleX", 1f),
+                android.animation.PropertyValuesHolder.ofFloat("scaleY", 1f),
+            ).apply { duration = 120 },
+        )
+        animator.start()
     }
 
     /** 切换宠物图片（表情）：传 null 恢复主头像。 */
