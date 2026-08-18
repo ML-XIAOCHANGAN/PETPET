@@ -163,11 +163,12 @@ object PetExpressionLibrary {
         ),
     )
 
-    /** 点击随机表情列表（排除 thinking 和 hiss——哈气图仅急躁+20连击可触发）。 */
+    /** 点击随机表情列表（排除 thinking、hiss 和 sleeping——哈气/睡眠图有专属触发条件）。 */
     fun clickExpressionsFor(breedId: String): List<Int> =
         allExpressions[breedId]?.values
             ?.filterNot { it == thinkingFor(breedId) }
             ?.filterNot { it == hissFor(breedId) }
+            ?.filterNot { it == expressionRes(breedId, "sleeping") }
             ?.toList() ?: emptyList()
 
     /** 思考表情（无则返回 null，调用方保持主头像）。 */

@@ -84,6 +84,8 @@ data class PetPetUiState(
     val darkTheme: Boolean = false,
     /** 宠物点击音效开关（默认关闭，设置页可开启）。 */
     val petSoundEnabled: Boolean = false,
+    /** 睡眠状态：20:00-次日 8:00 且重新打开软件时为 true（点击宠物不刷新睡眠表情）。 */
+    val petSleeping: Boolean = false,
     val greeting: String = "今天也一起慢慢生活吧。",
     val section: HomeSection = HomeSection.MY_PET,
     val notice: String? = null,

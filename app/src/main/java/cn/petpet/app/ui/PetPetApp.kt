@@ -50,6 +50,18 @@ fun PetPetApp(
     val fitCutViewModel: FitCutViewModel = viewModel()
     val petHealthViewModel: PetHealthViewModel = viewModel()
 
+    // 睡眠表情：每次应用重新打开（进入前台）时按当前时间判定（20:00-次日8:00）
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_START) {
+                viewModel.refreshSleepState()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
     PetPetTheme(darkTheme = state.darkTheme) {
         val snackbarHostState = remember { SnackbarHostState() }
 

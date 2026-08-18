@@ -230,7 +230,12 @@ fun MyPetScreen(
                     handlePetSoundTap()
                 },
                 thinking = state.petTyping,
-                expression = if (hissActive) "hiss" else state.petExpression,
+                // 表情优先级：哈气（急躁20连击）> 睡眠（20:00-8:00重开）> 情绪 > 主头像
+                expression = when {
+                    hissActive -> "hiss"
+                    state.petSleeping -> "sleeping"
+                    else -> state.petExpression
+                },
                 breedId = pet.breedId,
                 modifier = Modifier
                     .align(Alignment.Center)

@@ -172,6 +172,19 @@ class PetPetViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    /**
+     * 睡眠表情状态：仅在「重新打开软件」（应用进入前台）时判定一次。
+     * 当前时间在 20:00-次日 8:00 → 睡眠；否则解除。
+     * 应用内停留跨过 20:00 不会自动睡眠（需重开）。
+     */
+    fun refreshSleepState() {
+        val hour = java.time.LocalTime.now().hour
+        val sleeping = hour >= 20 || hour < 8
+        if (_state.value.petSleeping != sleeping) {
+            _state.update { it.copy(petSleeping = sleeping) }
+        }
+    }
+
     fun addDiaryEntry(title: String, content: String, images: List<String> = emptyList()) {
         val normalizedTitle = title.trim()
         val normalizedContent = content.trim()

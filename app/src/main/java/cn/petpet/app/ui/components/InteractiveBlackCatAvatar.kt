@@ -125,7 +125,11 @@ fun InteractiveBlackCatAvatar(
                     onInteract()
                     interactionSequence += 1
                     val currentSequence = interactionSequence
-                    currentImage = expressionImages.random()
+                    // 外部锁定表情（睡眠/哈气/情绪）时点击不随机换表情——睡眠图只能由
+                    // 「20:00-8:00 + 重新打开软件」出现，点击无法刷新出睡眠图片
+                    if (expression.isNullOrBlank()) {
+                        currentImage = expressionImages.random()
+                    }
                     scope.launch {
                         interactionProgress.snapTo(0f)
                         interactionProgress.animateTo(
