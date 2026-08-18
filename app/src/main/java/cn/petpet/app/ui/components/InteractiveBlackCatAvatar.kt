@@ -21,6 +21,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -54,6 +55,9 @@ fun InteractiveBlackCatAvatar(
     val mainRes = remember(breedId) {
         PetBreeds.byId(breedId)?.avatarRes ?: R.drawable.cat_main
     }
+    // 外部表情/思考的最新值（点击恢复协程内读取，避免闭包捕获旧值覆盖外部表情）
+    val latestExpression by rememberUpdatedState(expression)
+    val latestThinking by rememberUpdatedState(thinking)
     val infiniteTransition = rememberInfiniteTransition(label = "宠物持续呼吸")
     val breathingScale by infiniteTransition.animateFloat(
         initialValue = 0.985f,
@@ -128,7 +132,9 @@ fun InteractiveBlackCatAvatar(
                             targetValue = 1f,
                             animationSpec = tween(680, easing = FastOutSlowInEasing),
                         )
-                        if (currentSequence == interactionSequence) {
+                        // 外部指定了表情（哈气/情绪）或思考中时，不强制恢复主头像，
+                        // 由外部 LaunchedEffect 在表情结束后恢复（哈气 2.2s / 情绪 2.8s）
+                        if (currentSequence == interactionSequence && latestExpression.isNullOrBlank() && !latestThinking) {
                             currentImage = mainRes
                             interactionProgress.snapTo(0f)
                         }

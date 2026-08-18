@@ -129,6 +129,7 @@ fun PetPetApp(
                                 onSendMessage = viewModel::sendMessage,
                                 onDarkThemeChange = viewModel::setDarkTheme,
                                 onChatConfigChange = viewModel::setChatConfig,
+                                onPetSoundEnabledChange = viewModel::setPetSoundEnabled,
                                 chatFocusRequest = chatFocusRequest,
                             )
                             HomeSection.GROWTH -> GrowthScreen(

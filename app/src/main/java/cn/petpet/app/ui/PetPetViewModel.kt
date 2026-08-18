@@ -90,6 +90,9 @@ class PetPetViewModel(application: Application) : AndroidViewModel(application) 
             preferencesRepository.chatApiKeyFlow.collect { apiKey ->
                 _state.update { it.copy(chatApiKey = apiKey) }
             }
+            preferencesRepository.petSoundEnabledFlow.collect { enabled ->
+                _state.update { it.copy(petSoundEnabled = enabled) }
+            }
         }
     }
 
@@ -148,6 +151,21 @@ class PetPetViewModel(application: Application) : AndroidViewModel(application) 
                     if (it.darkTheme == enabled) it.copy(darkTheme = previous) else it
                 }
                 showNotice("主题设置保存失败，请稍后重试")
+            }
+        }
+    }
+
+    /** 宠物点击音效开关（默认关闭）。 */
+    fun setPetSoundEnabled(enabled: Boolean) {
+        _state.update { it.copy(petSoundEnabled = enabled) }
+        viewModelScope.launch {
+            try {
+                preferencesRepository.setPetSoundEnabled(enabled)
+            } catch (exception: CancellationException) {
+                throw exception
+            } catch (exception: Exception) {
+                _state.update { it.copy(petSoundEnabled = !enabled) }
+                showNotice("音效设置保存失败，请稍后重试")
             }
         }
     }

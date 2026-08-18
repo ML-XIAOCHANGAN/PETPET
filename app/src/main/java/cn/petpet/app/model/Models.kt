@@ -64,6 +64,8 @@ data class PetPetUiState(
     val posts: List<CommunityPost> = emptyList(),
     val diaryEntries: List<DiaryEntry> = emptyList(),
     val darkTheme: Boolean = false,
+    /** 宠物点击音效开关（默认关闭，设置页可开启）。 */
+    val petSoundEnabled: Boolean = false,
     val greeting: String = "今天也一起慢慢生活吧。",
     val section: HomeSection = HomeSection.MY_PET,
     val notice: String? = null,

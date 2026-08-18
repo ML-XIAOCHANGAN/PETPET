@@ -33,7 +33,7 @@ object PetExpressionLibrary {
             "surprised" to R.drawable.expr_gray_cat_surprised,
             "sleeping" to R.drawable.expr_gray_cat_sleeping,
             "thinking" to R.drawable.expr_gray_cat_thinking,
-        ),
+            "hiss" to R.drawable.expr_gray_cat_hiss,        ),
         "orange_cat" to mapOf(
             "wink" to R.drawable.expr_orange_cat_wink,
             "happy" to R.drawable.expr_orange_cat_happy,
@@ -41,14 +41,14 @@ object PetExpressionLibrary {
             "surprised" to R.drawable.expr_orange_cat_surprised,
             "sleeping" to R.drawable.expr_orange_cat_sleeping,
             "thinking" to R.drawable.expr_orange_cat_thinking,
-        ),
+            "hiss" to R.drawable.expr_orange_cat_hiss,        ),
         "calico" to mapOf(
             "wink" to R.drawable.expr_calico_wink,
             "happy" to R.drawable.expr_calico_happy,
             "shocked" to R.drawable.expr_calico_shocked,
             "sleeping" to R.drawable.expr_calico_sleeping,
             "thinking" to R.drawable.expr_calico_thinking,
-        ),
+            "hiss" to R.drawable.expr_calico_hiss,        ),
         "ragdoll" to mapOf(
             "wink" to R.drawable.expr_ragdoll_wink,
             "happy" to R.drawable.expr_ragdoll_happy,
@@ -56,7 +56,7 @@ object PetExpressionLibrary {
             "surprised" to R.drawable.expr_ragdoll_surprised,
             "sleeping" to R.drawable.expr_ragdoll_sleeping,
             "thinking" to R.drawable.expr_ragdoll_thinking,
-        ),
+            "hiss" to R.drawable.expr_ragdoll_hiss,        ),
         "white_british" to mapOf(
             "wink" to R.drawable.expr_white_british_wink,
             "happy" to R.drawable.expr_white_british_happy,
@@ -64,14 +64,14 @@ object PetExpressionLibrary {
             "shocked" to R.drawable.expr_white_british_shocked,
             "sleeping" to R.drawable.expr_white_british_sleeping,
             "thinking" to R.drawable.expr_white_british_thinking,
-        ),
+            "hiss" to R.drawable.expr_white_british_hiss,        ),
         "golden_shaded" to mapOf(
             "wink" to R.drawable.expr_golden_shaded_wink,
             "joy" to R.drawable.expr_golden_shaded_joy,
             "surprised" to R.drawable.expr_golden_shaded_surprised,
             "sleeping" to R.drawable.expr_golden_shaded_sleeping,
             "thinking" to R.drawable.expr_golden_shaded_thinking,
-        ),
+            "hiss" to R.drawable.expr_golden_shaded_hiss,        ),
         "maine_coon" to mapOf(
             "wink" to R.drawable.expr_maine_coon_wink,
             "happy" to R.drawable.expr_maine_coon_happy,
@@ -79,7 +79,7 @@ object PetExpressionLibrary {
             "surprised" to R.drawable.expr_maine_coon_surprised,
             "sleeping" to R.drawable.expr_maine_coon_sleeping,
             "thinking" to R.drawable.expr_maine_coon_thinking,
-        ),
+            "hiss" to R.drawable.expr_maine_coon_hiss,        ),
         "scottish_fold" to mapOf(
             "wink" to R.drawable.expr_scottish_fold_wink,
             "happy" to R.drawable.expr_scottish_fold_happy,
@@ -87,7 +87,7 @@ object PetExpressionLibrary {
             "shocked" to R.drawable.expr_scottish_fold_shocked,
             "sleeping" to R.drawable.expr_scottish_fold_sleeping,
             "thinking" to R.drawable.expr_scottish_fold_thinking,
-        ),
+            "hiss" to R.drawable.expr_scottish_fold_hiss,        ),
         "siamese" to mapOf(
             "wink" to R.drawable.expr_siamese_wink,
             "happy" to R.drawable.expr_siamese_happy,
@@ -95,7 +95,7 @@ object PetExpressionLibrary {
             "surprised" to R.drawable.expr_siamese_surprised,
             "sleeping" to R.drawable.expr_siamese_sleeping,
             "thinking" to R.drawable.expr_siamese_thinking,
-        ),
+            "hiss" to R.drawable.expr_siamese_hiss,        ),
         // ── 狗狗 ──
         "shiba" to mapOf(
             "wink" to R.drawable.expr_shiba_wink,
@@ -170,7 +170,10 @@ object PetExpressionLibrary {
     /** 思考表情（无则返回 null，调用方保持主头像）。 */
     fun thinkingFor(breedId: String): Int? = allExpressions[breedId]?.get("thinking")
 
-    /** 按情绪名查询表情资源（happy/joy/surprised/shocked/sad/panic/speechless/wink）。 */
+    /** 哈气表情（猫连续点击触发；无对应图返回 null，调用方仅播音频不换图）。 */
+    fun hissFor(breedId: String): Int? = allExpressions[breedId]?.get("hiss")
+
+    /** 按情绪名查询表情资源（happy/joy/surprised/shocked/sad/panic/speechless/wink/hiss）。 */
     @DrawableRes
     fun expressionRes(breedId: String, emotion: String): Int? =
         allExpressions[breedId]?.get(emotion)

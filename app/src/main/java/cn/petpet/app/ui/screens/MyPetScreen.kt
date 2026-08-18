@@ -49,6 +49,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
@@ -64,6 +65,7 @@ import cn.petpet.app.model.ChatProvider
 import cn.petpet.app.overlay.FloatingPetImageButton
 import cn.petpet.app.ui.components.InteractiveBlackCatAvatar
 import cn.petpet.app.ui.components.SettingsDialog
+import cn.petpet.app.ui.components.PetSoundPlayer
 import cn.petpet.app.ui.components.VoxelButton
 import cn.petpet.app.ui.components.drawCalendarIcon
 import cn.petpet.app.ui.components.drawChatBubbleIcon
@@ -84,6 +86,7 @@ fun MyPetScreen(
     onSendMessage: (String) -> Unit,
     onDarkThemeChange: (Boolean) -> Unit,
     onChatConfigChange: (ChatProvider, String) -> Unit,
+    onPetSoundEnabledChange: (Boolean) -> Unit = {},
     chatFocusRequest: Long = 0L,
 ) {
     val pet = requireNotNull(state.pet)
@@ -93,6 +96,44 @@ fun MyPetScreen(
     val focusRequester = remember { FocusRequester() }
     val keyboardController = LocalSoftwareKeyboardController.current
     var showSettings by remember { mutableStateOf(false) }
+
+    // ── 宠物点击音效：30% 随机叫声（触发后下次必不触发）+ 连点小猫哈气 ──
+    val context = LocalContext.current
+    var hissTrigger by remember { mutableIntStateOf(0) }
+    var lastTapTime by remember { mutableStateOf(0L) }
+    var tapStreak by remember { mutableIntStateOf(0) }
+    var soundLastTriggered by remember { mutableStateOf(false) }
+    val isCat = PetBreeds.byId(pet.breedId)?.type == PetType.CAT
+
+    fun handlePetSoundTap() {
+        if (!state.petSoundEnabled) return
+        val now = System.currentTimeMillis()
+        // 连续点击判定：800ms 内连续点击累积，猫连击 ≥3 次触发哈气
+        tapStreak = if (now - lastTapTime < 800) tapStreak + 1 else 1
+        lastTapTime = now
+        if (isCat && tapStreak >= 3) {
+            // 哈气：播放哈气音频 + 宠物图片切哈气表情（2.2 秒后恢复）
+            PetSoundPlayer.playHiss(context)
+            hissTrigger += 1
+            return
+        }
+        // 普通叫声：30% 概率触发；若上次已触发，本次必定不触发
+        val shouldTrigger = !soundLastTriggered && kotlin.random.Random.nextFloat() < 0.3f
+        if (shouldTrigger) {
+            PetSoundPlayer.playRandom(context, isDog = !isCat)
+            soundLastTriggered = true
+        } else {
+            soundLastTriggered = false
+        }
+    }
+
+    // 哈气表情 2.2 秒后自动恢复主头像
+    LaunchedEffect(hissTrigger) {
+        if (hissTrigger > 0) {
+            delay(2200)
+            hissTrigger = 0
+        }
+    }
 
     // 对话弹窗：小猫回复后弹出气泡，显示 5 秒后自动隐藏
     val bubble = state.chatBubble
@@ -171,9 +212,10 @@ fun MyPetScreen(
                 onInteract = {
                     onInteract()
                     greetingRequest += 1
+                    handlePetSoundTap()
                 },
                 thinking = state.petTyping,
-                expression = state.petExpression,
+                expression = if (hissTrigger > 0) "hiss" else state.petExpression,
                 breedId = pet.breedId,
                 modifier = Modifier
                     .align(Alignment.Center)
@@ -230,8 +272,10 @@ fun MyPetScreen(
             darkTheme = state.darkTheme,
             chatProvider = state.chatProvider,
             chatApiKey = state.chatApiKey,
+            petSoundEnabled = state.petSoundEnabled,
             onDarkThemeChange = onDarkThemeChange,
             onChatConfigChange = onChatConfigChange,
+            onPetSoundEnabledChange = onPetSoundEnabledChange,
             onDismiss = { showSettings = false },
         )
     }

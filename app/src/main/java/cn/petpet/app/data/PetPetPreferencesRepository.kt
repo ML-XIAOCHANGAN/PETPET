@@ -78,6 +78,10 @@ class PetPetPreferencesRepository(
     val chatApiKeyFlow: Flow<String> = safePreferencesFlow()
         .map { state -> state.preferences[KEY_CHAT_API_KEY] ?: "" }
 
+    /** 宠物点击音效开关（默认关闭）。 */
+    val petSoundEnabledFlow: Flow<Boolean> = safePreferencesFlow()
+        .map { state -> state.preferences[KEY_PET_SOUND_ENABLED] ?: false }
+
     suspend fun setDarkTheme(enabled: Boolean) {
         dataStore.edit { preferences ->
             preferences[KEY_DARK_THEME] = enabled
@@ -89,6 +93,13 @@ class PetPetPreferencesRepository(
         dataStore.edit { preferences ->
             preferences[KEY_CHAT_PROVIDER] = providerId
             preferences[KEY_CHAT_API_KEY] = apiKey.trim()
+        }
+    }
+
+    /** 宠物点击音效开关。 */
+    suspend fun setPetSoundEnabled(enabled: Boolean) {
+        dataStore.edit { preferences ->
+            preferences[KEY_PET_SOUND_ENABLED] = enabled
         }
     }
 
@@ -148,6 +159,7 @@ class PetPetPreferencesRepository(
 
     private companion object {
         val KEY_DARK_THEME = booleanPreferencesKey("dark_theme")
+        val KEY_PET_SOUND_ENABLED = booleanPreferencesKey("pet_sound_enabled")
         val KEY_DIARY_ENTRIES = stringPreferencesKey("diary_entries")
         val KEY_DIARY_ENTRIES_CORRUPTED_BACKUP =
             stringPreferencesKey("diary_entries_corrupted_backup")

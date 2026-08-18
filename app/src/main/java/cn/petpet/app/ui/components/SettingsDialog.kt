@@ -20,6 +20,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -52,8 +53,10 @@ fun SettingsDialog(
     darkTheme: Boolean,
     chatProvider: ChatProvider,
     chatApiKey: String,
+    petSoundEnabled: Boolean = false,
     onDarkThemeChange: (Boolean) -> Unit,
     onChatConfigChange: (ChatProvider, String) -> Unit,
+    onPetSoundEnabledChange: (Boolean) -> Unit = {},
     onDismiss: () -> Unit,
 ) {
     val breed = PetBreeds.byId(pet.breedId)
@@ -127,6 +130,17 @@ fun SettingsDialog(
                         text = if (darkTheme) "🌙 深色" else "☀️ 浅色",
                         onClick = { onDarkThemeChange(!darkTheme) },
                         compact = true,
+                    )
+                }
+
+                // 宠物点击音效开关（默认关闭）
+                SettingRow(
+                    title = "宠物音效",
+                    subtitle = "点击宠物时随机播放叫声，连点小猫会哈气",
+                ) {
+                    Switch(
+                        checked = petSoundEnabled,
+                        onCheckedChange = { onPetSoundEnabledChange(it) },
                     )
                 }
 
