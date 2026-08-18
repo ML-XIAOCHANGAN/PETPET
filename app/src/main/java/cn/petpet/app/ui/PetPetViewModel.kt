@@ -411,6 +411,11 @@ class PetPetViewModel(application: Application) : AndroidViewModel(application) 
         applySnapshot(repository.toggleDislike(postId))
     }
 
+    /** 删除帖子进垃圾桶（正文/图片隐藏，仅保留头像/名字/标题）。 */
+    fun deletePost(postId: Long) {
+        applySnapshot(repository.deletePost(postId))
+    }
+
     fun clearNotice() {
         _state.update { it.copy(notice = null) }
     }

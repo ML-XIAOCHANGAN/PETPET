@@ -95,6 +95,7 @@ internal object PersistenceCodecs {
                             collected = if (item.has("collected")) item.getBoolean("collected") else false,
                             disliked = if (item.has("disliked")) item.getBoolean("disliked") else false,
                             images = decodeStringList(item, "images"),
+                            inTrash = if (item.has("inTrash")) item.getBoolean("inTrash") else false,
                         ),
                     )
                 }
@@ -128,7 +129,8 @@ internal object PersistenceCodecs {
                     .put("comments", comments)
                     .put("collected", post.collected)
                     .put("disliked", post.disliked)
-                    .put("images", JSONArray(post.images)),
+                    .put("images", JSONArray(post.images))
+                    .put("inTrash", post.inTrash),
             )
         }
         return array.toString()

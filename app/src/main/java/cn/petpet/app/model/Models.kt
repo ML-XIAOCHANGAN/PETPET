@@ -38,6 +38,8 @@ data class CommunityPost(
     val disliked: Boolean = false,
     /** 图片路径列表（本地内部目录；网关同步不含图片，仅本地展示）。 */
     val images: List<String> = emptyList(),
+    /** 已删除进垃圾桶：帖子只保留头像/名字/标题展示，正文与图片不再显示。 */
+    val inTrash: Boolean = false,
 )
 
 enum class HomeSection(val title: String, val symbol: String) {

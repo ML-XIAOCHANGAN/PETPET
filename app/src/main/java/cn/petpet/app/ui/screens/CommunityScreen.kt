@@ -102,16 +102,21 @@ fun CommunityScreen(
     onReport: () -> Unit,
     onToggleCollect: (Long) -> Unit = {},
     onToggleDislike: (Long) -> Unit = {},
+    onDeletePost: (Long) -> Unit = {},
 ) {
     var postText by rememberSaveable { mutableStateOf("") }
     var composerExpanded by rememberSaveable { mutableStateOf(false) }
     var postImages by remember { mutableStateOf<List<String>>(emptyList()) }
+    // 垃圾桶视图开关：true 显示已删除帖子的精简卡片（仅头像/名字/标题）
+    var showTrash by rememberSaveable { mutableStateOf(false) }
     val isDog = PetBreeds.byId(pet.breedId)?.type == PetType.DOG
 
     // 首次进入尝试拉取在线动态（失败静默，保持离线模式）
     LaunchedEffect(Unit) {
         onRefreshNetwork()
     }
+
+    val visiblePosts = if (showTrash) posts.filter { it.inTrash } else posts.filter { !it.inTrash }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -124,15 +129,22 @@ fun CommunityScreen(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = "社区",
+                    text = if (showTrash) "垃圾桶" else "社区",
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Black,
                 )
                 Spacer(Modifier.width(10.dp))
+                // 🗑️ 垃圾桶：点击切换社区 / 垃圾桶视图
                 Text(
-                    text = "(=^･ω･^=)",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = MaterialTheme.typography.bodyMedium,
+                    text = "🗑️",
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable { showTrash = !showTrash }
+                        .padding(horizontal = 4.dp, vertical = 2.dp)
+                        .semantics {
+                            contentDescription = if (showTrash) "返回社区" else "打开垃圾桶"
+                        },
+                    style = MaterialTheme.typography.titleMedium,
                 )
                 Spacer(Modifier.weight(1f))
                 // 在线/离线标识：离线用本地数据，在线可同步
@@ -158,35 +170,57 @@ fun CommunityScreen(
             }
         }
 
-        item { CommunityReel() }
+        if (showTrash) {
+            // ── 垃圾桶：已删除帖子的精简展示（头像/名字/标题，正文与图片隐藏） ──
+            if (visiblePosts.isEmpty()) {
+                item {
+                    Text(
+                        text = "垃圾桶空空如也",
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 48.dp),
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+            } else {
+                items(visiblePosts, key = CommunityPost::id) { post ->
+                    TrashPostCard(post = post)
+                }
+            }
+        } else {
+            item { CommunityReel() }
 
-        item {
-            CommunityComposer(
-                isDog = isDog,
-                expanded = composerExpanded,
-                text = postText,
-                images = postImages,
-                onImagesChange = { postImages = it },
-                onExpandedChange = { composerExpanded = it },
-                onTextChange = { if (it.length <= 500) postText = it },
-                onPublish = {
-                    onCreatePost(postText, postImages)
-                    postText = ""
-                    postImages = emptyList()
-                    composerExpanded = false
-                },
-            )
-        }
+            item {
+                CommunityComposer(
+                    isDog = isDog,
+                    expanded = composerExpanded,
+                    text = postText,
+                    images = postImages,
+                    onImagesChange = { postImages = it },
+                    onExpandedChange = { composerExpanded = it },
+                    onTextChange = { if (it.length <= 500) postText = it },
+                    onPublish = {
+                        onCreatePost(postText, postImages)
+                        postText = ""
+                        postImages = emptyList()
+                        composerExpanded = false
+                    },
+                )
+            }
 
-        items(posts, key = CommunityPost::id) { post ->
-            PostCard(
-                post = post,
-                onToggleLike = { onToggleLike(post.id) },
-                onAddComment = { onAddComment(post.id, it) },
-                onReport = onReport,
-                onToggleCollect = { onToggleCollect(post.id) },
-                onToggleDislike = { onToggleDislike(post.id) },
-            )
+            items(visiblePosts, key = CommunityPost::id) { post ->
+                PostCard(
+                    post = post,
+                    onToggleLike = { onToggleLike(post.id) },
+                    onAddComment = { onAddComment(post.id, it) },
+                    onReport = onReport,
+                    onToggleCollect = { onToggleCollect(post.id) },
+                    onToggleDislike = { onToggleDislike(post.id) },
+                    onDelete = { onDeletePost(post.id) },
+                )
+            }
         }
     }
 }
@@ -393,6 +427,7 @@ private fun PostCard(
     onReport: () -> Unit,
     onToggleCollect: () -> Unit,
     onToggleDislike: () -> Unit,
+    onDelete: () -> Unit = {},
 ) {
     var showCommentInput by rememberSaveable(post.id) { mutableStateOf(false) }
     var comment by rememberSaveable(post.id) { mutableStateOf("") }
@@ -457,7 +492,7 @@ private fun PostCard(
                 Box {
                     RoundActionButton(
                         text = "•••",
-                        description = if (menuExpanded) "收起操作菜单" else "更多操作：举报、收藏、不喜欢",
+                        description = if (menuExpanded) "收起操作菜单" else "更多操作：举报、收藏、不喜欢、删除",
                         onClick = { menuExpanded = true },
                     )
                     DropdownMenu(
@@ -483,6 +518,18 @@ private fun PostCard(
                             onClick = {
                                 menuExpanded = false
                                 onToggleDislike()
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    "删除",
+                                    color = MaterialTheme.colorScheme.error,
+                                )
+                            },
+                            onClick = {
+                                menuExpanded = false
+                                onDelete()
                             },
                         )
                     }
@@ -586,6 +633,61 @@ private fun PostCard(
                     }
                 }
             }
+        }
+    }
+}
+
+/**
+ * 垃圾桶里的帖子卡片：仅显示头像、名字、标题（正文首行截断），
+ * 图片与正文内容一律不展示。
+ */
+@Composable
+private fun TrashPostCard(post: CommunityPost) {
+    // 标题 = 正文第一行（截断过长部分）
+    val title = post.text.lineSequence().firstOrNull()?.trim()
+        ?.take(24) ?: "（无内容）"
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+    ) {
+        Row(
+            modifier = Modifier.padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Surface(
+                modifier = Modifier.size(40.dp),
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.surfaceVariant,
+            ) {
+                Image(
+                    painter = painterResource(R.drawable.cat_main),
+                    contentDescription = null,
+                    modifier = Modifier.padding(3.dp),
+                    contentScale = ContentScale.Fit,
+                )
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    text = post.author,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Text(
+                text = "🗑️",
+                style = MaterialTheme.typography.bodyLarge,
+            )
         }
     }
 }

@@ -157,6 +157,16 @@ class PetPetRepository(
         return snapshot(readResult.storageWarning)
     }
 
+    /** 删除帖子进垃圾桶：正文与图片不再展示，仅保留头像/名字/标题（本地持久化）。 */
+    fun deletePost(postId: Long): LocalSnapshot {
+        val readResult = readPosts()
+        val posts = readResult.posts.map { post ->
+            if (post.id != postId) post else post.copy(inTrash = true)
+        }
+        writePosts(posts)
+        return snapshot(readResult.storageWarning)
+    }
+
     fun addComment(postId: Long, text: String): LocalSnapshot {
         val readResult = readPosts()
         val posts = readResult.posts.map { post ->

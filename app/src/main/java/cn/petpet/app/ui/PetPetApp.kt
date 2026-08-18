@@ -150,6 +150,7 @@ fun PetPetApp(
                                 onReport = viewModel::reportPost,
                                 onToggleCollect = viewModel::toggleCollect,
                                 onToggleDislike = viewModel::toggleDislike,
+                                onDeletePost = viewModel::deletePost,
                             )
                         }
                     }
