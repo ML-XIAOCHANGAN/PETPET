@@ -1,7 +1,21 @@
+import java.util.Properties
+import java.io.FileInputStream
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
+}
+
+// ── Release 签名配置（安全）──────────────────────────────
+// 签名信息只从 keystore.properties 读取（该文件已被 .gitignore 忽略，绝不入库）。
+// 缺失时 release 不配置签名（构建会失败并提示），assembleDebug 完全不受影响。
+// 模板见 keystore.properties.example。
+val keystoreProps = Properties()
+val keystorePropsFile = rootProject.file("keystore.properties")
+val hasKeystoreProps = keystorePropsFile.exists()
+if (hasKeystoreProps) {
+    FileInputStream(keystorePropsFile).use { keystoreProps.load(it) }
 }
 
 android {
@@ -21,10 +35,12 @@ android {
 
     signingConfigs {
         create("release") {
-            storeFile = file("petpet-release.keystore")
-            storePassword = "REDACTED"
-            keyAlias = "petpet"
-            keyPassword = "REDACTED"
+            if (hasKeystoreProps) {
+                storeFile = rootProject.file(keystoreProps.getProperty("storeFile"))
+                storePassword = keystoreProps.getProperty("storePassword")
+                keyAlias = keystoreProps.getProperty("keyAlias")
+                keyPassword = keystoreProps.getProperty("keyPassword")
+            }
         }
     }
 
@@ -35,7 +51,12 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
-            signingConfig = signingConfigs.getByName("release")
+            if (hasKeystoreProps) {
+                signingConfig = signingConfigs.getByName("release")
+            } else {
+                // 无本地签名配置：不静默用 debug key 打包，直接提示
+                logger.warn("警告: 缺少 keystore.properties，release 构建将不配置签名。请复制 keystore.properties.example 并填入真实签名信息。")
+            }
         }
     }
 

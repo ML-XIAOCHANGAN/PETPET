@@ -291,7 +291,9 @@ class ChatGatewayClient(
     )
 
     companion object {
-        // 本地开发默认地址；真机调试需改为电脑局域网 IP（如 http://192.168.x.x:3002）
+        // 本地开发默认地址（模拟器访问宿主机）。
+        // 注意：明文 HTTP 仅对 10.0.2.2 / 127.0.0.1 / localhost 放行（见 res/xml/network_security_config.xml）；
+        // 真机调试需把电脑局域网 IP（如 http://192.168.x.x:3002）加入该配置，或改用 HTTPS 网关。
         const val DEFAULT_BASE_URL = "http://10.0.2.2:3002"
     }
 }
